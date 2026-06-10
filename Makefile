@@ -5,6 +5,7 @@ PYTHON ?= python3
 CPPFLAGS ?=
 CFLAGS ?= -O2 -g
 LDFLAGS ?=
+PROJECT_CPPFLAGS =
 
 WARNINGS = -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion \
            -Wstrict-prototypes -Wmissing-prototypes -Wcast-qual \
@@ -21,7 +22,7 @@ ifeq ($(strip $(GL_LIBS)),)
 GL_LIBS := -lGL
 endif
 else
-CPPFLAGS += -DMATRIXCODE_USE_MINIMAL_GL_HEADERS
+PROJECT_CPPFLAGS += -DMATRIXCODE_USE_MINIMAL_GL_HEADERS
 GL_LIBS := -Wl,-l:libGL.so.1
 endif
 
@@ -40,10 +41,10 @@ matrixcode: $(OBJECTS)
 	$(CC) $(CFLAGS) $(WARNINGS) -o $@ $(OBJECTS) $(LDFLAGS) $(X11_LIBS) $(GL_LIBS) -lm
 
 matrixcode.o: matrixcode.c glyphs.h compat/minigl.h
-	$(CC) $(CPPFLAGS) $(X11_CFLAGS) $(GL_CFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ matrixcode.c
+	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(X11_CFLAGS) $(GL_CFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ matrixcode.c
 
 glyphs.o: glyphs.c glyphs.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ glyphs.c
+	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ glyphs.c
 
 check: matrixcode
 	./matrixcode -self-test
