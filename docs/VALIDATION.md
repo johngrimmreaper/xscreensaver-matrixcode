@@ -25,12 +25,17 @@
 The Debian autopkgtest repeats the internal test and software-GLX screenshot
 check against the installed `/usr/libexec/xscreensaver/matrixcode` executable.
 The GitHub Actions workflow builds on Ubuntu 24.04, runs the source test suite,
-and invokes `dpkg-buildpackage`.
+invokes `dpkg-buildpackage`, and runs Lintian.
 
 ## Local validation record
 
-The initial 0.1.0 source was compiled with GCC-compatible warning flags that
-include conversion, shadow, format, prototype, cast-qual and undefined-macro
-checks. It completed the deterministic, CLI and software-GLX rendering tests
-without warnings or test failures. The generated 1280x720 reference image is
-stored as `docs/preview.png`.
+The initial 0.1.0 source was compiled with both GCC and Clang under warning
+flags covering conversion, shadow, format, prototypes, cast qualification, and
+undefined macros. AddressSanitizer, UndefinedBehaviorSanitizer, Clang static
+analysis, deterministic CLI tests, root-window tests, embedded-window tests,
+hardened staging, and a Debian source-package round trip all completed without
+findings or failures. The generated 1280x720 reference image is stored as
+`docs/preview.png`.
+
+The exact local environment, results, performance sample, and one acknowledged
+container limitation are recorded in [BUILD-REPORT.md](BUILD-REPORT.md).

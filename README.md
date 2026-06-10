@@ -118,6 +118,7 @@ exercise this OpenGL 1.x code. Debian/Ubuntu packages always build against
 - [Research notes](docs/RESEARCH.md)
 - [Performance architecture](docs/PERFORMANCE.md)
 - [Validation](docs/VALIDATION.md)
+- [Build report](docs/BUILD-REPORT.md)
 - [Contributing](CONTRIBUTING.md)
 
 ## License
