@@ -1,0 +1,8 @@
+xscreensaver-matrixcode (0.1.0-1~noble1) noble; urgency=medium
+
+  * Initial standalone release.
+  * Add a clean-room, fixed-grid digital code rain renderer using X11 and GLX.
+  * Add original katakana-inspired, mirrored, numeric, and symbol glyph atlas.
+  * Add XScreenSaver configuration, desktop entry, manual page, tests, and CI.
+
+ -- Reaper <JohnGrimmReaper@disroot.org>  Wed, 10 Jun 2026 02:30:00 +0000

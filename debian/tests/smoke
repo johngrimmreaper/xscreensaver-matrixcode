@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+program=/usr/libexec/xscreensaver/matrixcode
+out=${AUTOPKGTEST_TMP:-/tmp}/matrixcode-autopkgtest.ppm
+
+"$program" -self-test
+"$program" -version | grep -F 'matrixcode 0.1.0'
+
+LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a \
+  "$program" -window -geometry 800x600 -frames 45 -fps 60 \
+  -seed 19990331 -no-vsync -screenshot "$out"
+
+python3 tests/check-ppm.py "$out"

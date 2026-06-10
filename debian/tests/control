@@ -1,0 +1,3 @@
+Tests: smoke
+Depends: @, libgl1-mesa-dri, python3, xauth, xvfb
+Restrictions: allow-stderr

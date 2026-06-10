@@ -1,0 +1,6 @@
+matrixcode
+matrixcode.o
+glyphs.o
+tests/*.ppm
+tests/*.png
+docs/preview.ppm
