@@ -1,0 +1,99 @@
+.TH MATRIXCODE 6x "June 2026" "matrixcode 0.1.0" "XScreenSaver manual"
+.SH NAME
+matrixcode \- lightweight OpenGL digital code rain
+.SH SYNOPSIS
+.B matrixcode
+.RI [ options ]
+.SH DESCRIPTION
+.B matrixcode
+renders a fixed grid of custom, half-width glyphs whose brightness is animated
+by independently falling illumination pulses.  The renderer uses X11 and
+legacy OpenGL/GLX so it can run as an XScreenSaver hack without requiring a
+programmable shader pipeline.
+.PP
+The glyphs are original clean-room artwork inspired by katakana, mirrored
+forms, digits, and punctuation.  No film assets or third-party fonts are
+included.
+.SH WINDOW OPTIONS
+.TP
+.BR \-root
+Draw on the root window.
+.TP
+.BR \-window
+Create a test window.  This is the default outside XScreenSaver.
+.TP
+.BI \-window-id " ID"
+Draw in an existing X window.  The XSCREENSAVER_WINDOW environment variable is
+also recognized.
+.TP
+.BI \-geometry " WIDTHxHEIGHT"
+Set the test-window size.  The default is 960x540.
+.SH VISUAL OPTIONS
+.TP
+.BI \-fps " N"
+Cap rendering at 5 to 120 frames per second.  Default: 30.
+.TP
+.BI \-delay " MICROSECONDS"
+Set the frame delay directly.  This overrides \-fps.
+.TP
+.BI \-cell-size " N"
+Set glyph height from 10 to 40 pixels.  Default: 18.
+.TP
+.BI \-density " N"
+Set the percentage of columns carrying rain, from 10 to 90.  Default: 42.
+.TP
+.BI \-speed " N"
+Set fall speed as a percentage, from 25 to 250.  Default: 100.
+.TP
+.BI \-trail " N"
+Set nominal trail length from 6 to 40 cells.  Default: 18.
+.TP
+.BI \-cycle " N"
+Set the rate of glyph mutation from 0 to 300 percent.  Default: 100.
+.TP
+.BI \-glow " N"
+Set glow strength from 0 to 100.  Default: 68.
+.TP
+.BI \-contrast " N"
+Set trail contrast from 20 to 100.  Default: 78.
+.TP
+.BI \-seed " N"
+Use a deterministic random seed.
+.TP
+.BR \-no-vsync
+Do not request a GLX swap interval.
+.SH TESTING OPTIONS
+.TP
+.BI \-frames " N"
+Exit after rendering N frames.
+.TP
+.BI \-screenshot " FILE.ppm"
+Save the last rendered frame as a binary PPM image.
+.TP
+.BR \-self-test
+Run deterministic non-graphical tests and exit.
+.TP
+.BR \-verbose
+Print GL implementation and grid diagnostics.
+.TP
+.BR \-version
+Print the version and exit.
+.TP
+.BR \-help
+Print command-line help and exit.
+.SH FILES
+.TP
+.I /usr/libexec/xscreensaver/matrixcode
+The screen saver executable.
+.TP
+.I /usr/share/xscreensaver/config/matrixcode.xml
+Preferences metadata used by xscreensaver-settings.
+.SH PERFORMANCE
+The default renderer uses one compact texture atlas, immediate-mode textured
+quads, no per-frame allocation, no shaders, no framebuffers, and at most two
+illumination pulses per active column.  Lower \-fps, increase \-cell-size, or
+reduce \-density on very slow machines.
+.SH AUTHORS
+MatrixCode was written as an independent clean-room XScreenSaver hack.
+.SH LICENSE
+MIT/X11.

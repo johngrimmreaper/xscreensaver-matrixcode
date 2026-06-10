@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=MatrixCode
+Comment=Faithful, lightweight digital code rain for XScreenSaver
+Exec=/usr/libexec/xscreensaver/matrixcode -root
+TryExec=/usr/libexec/xscreensaver/matrixcode
+Terminal=false
+Type=Application
+Categories=Screensaver;
+NoDisplay=true
