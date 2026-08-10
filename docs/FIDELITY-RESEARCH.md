@@ -47,22 +47,20 @@ model around it.
 ## 4. First-film/operator geometry
 
 The best-documented public reconstruction provides a dedicated `operator`
-configuration intended to resemble first-film opening/operator imagery.  Its
-useful geometry clues include:
+configuration intended to resemble first-film opening/operator imagery.  It
+uses 108 as a grid-related tuning value and also provides useful clues such as a
+1.35 glyph height-to-width ratio, long rain cycles, bright isolated cursors and
+slow symbol cycling.  MatrixCode initially translated that 108 value directly
+into 108 literal square columns.  Visual validation showed that this made the
+operator typography too small because the other renderer uses different aspect
+and glyph-transform math.
 
-- 108 logical columns;
-- 1.35 glyph height-to-width ratio;
-- relatively long rain cycles;
-- fast, bright isolated cursor cells;
-- slow symbol cycling.
-
-MatrixCode therefore uses **108 columns** as the operator default.  The row
-count is derived from the framed display area so the logical cell grid remains
-square in screen space; on 4:3 that produces approximately 81 rows.
-
-This is a much better invariant than "18 screen pixels per glyph": a modern
-4K panel and a 1080p panel now show the same composition instead of different
-amounts of code.
+The corrected MatrixCode model instead starts from its own **640x480 virtual
+CRT** and an 8x8 logical cell, yielding an **80x60 reference density** at 4:3.
+Target height determines cell size.  Wider targets extend the virtual raster and
+add columns at that same size (about 107x60 for 16:9), while a proportionally
+larger 4K target keeps the same logical count and doubles the pixel size.  This
+fills modern displays without changing glyph proportions or apparent density.
 
 ## 5. Flatter rain, brighter cursors
 

@@ -1,12 +1,15 @@
 xscreensaver-matrixcode (0.2.0-1~noble1) noble; urgency=medium
 
   * Rework the default renderer around the first-film operator CRT look.
-  * Use a resolution-independent 108-column logical grid and tall/narrow glyphs.
+  * Use an 80x60 4:3 reference density that extends across wider targets.
   * Add operator1999, opening1999 and clean visual profiles.
   * Replace smooth neon trails with flatter illuminated rain and pale cursors.
   * Add 4:3 framing, 640x480 virtual raster, tube curvature, scanlines,
     phosphor grille, vignette, overscan and phosphor persistence.
   * Preserve the clean-room glyph atlas and fixed-function OpenGL/GLX support.
+  * Slow the operator rain cadence to better match the filmed CRT rhythm.
+  * Restart and reseed the simulation when its target window is resized.
+  * Honor per-monitor XScreenSaver windows and validate real X11 resize events.
   * Expand deterministic validation for film geometry and CRT presentation.
 
  -- Reaper <JohnGrimmReaper@disroot.org>  Mon, 10 Aug 2026 21:30:00 +0000

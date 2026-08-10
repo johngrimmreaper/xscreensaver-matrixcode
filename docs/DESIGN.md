@@ -10,10 +10,13 @@ head-to-tail gradient.
 
 ## Grid and typography
 
-The operator profile uses 108 columns.  Rows are calculated from the framed
-content aspect ratio so logical cells stay square in screen space.  The glyph
-quad itself is narrower than the cell, approximately 1.35:1 height-to-width,
-leaving visible column separation.
+The operator profile uses an 80x60 reference density at 4:3, corresponding to
+8x8 logical cells on a 640x480 reference CRT.  Target height sets the logical
+cell size.  Wider windows add columns at that same size instead of stretching
+the glyphs or leaving unused side areas; a 16:9 target is therefore about
+107x60.  Increasing resolution at the same aspect keeps the logical grid count
+and scales the glyphs proportionally.  The glyph quad itself is narrower than the cell,
+approximately 1.35:1 height-to-width, leaving visible column separation.
 
 The atlas contains 57 original 8x12 base glyphs:
 

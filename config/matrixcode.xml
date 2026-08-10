@@ -8,7 +8,7 @@
 
   <number id="columns" type="slider" arg="-columns %"
           _label="Code columns" _low-label="Larger glyphs" _high-label="Smaller glyphs"
-          low="72" high="144" default="108"/>
+          low="60" high="120" default="80"/>
 
   <number id="density" type="slider" arg="-density %"
           _label="Illuminated code" _low-label="Sparse" _high-label="Dense"
@@ -16,7 +16,7 @@
 
   <number id="speed" type="slider" arg="-speed %"
           _label="Fall speed" _low-label="Slower" _high-label="Faster"
-          low="25" high="200" default="100"/>
+          low="25" high="200" default="40"/>
 
   <number id="trail" type="slider" arg="-trail %"
           _label="Rain length" _low-label="Shorter" _high-label="Longer"
@@ -64,8 +64,8 @@
 
   <_description>
 +A clean-room reconstruction of original-era Matrix digital rain, tuned around
-the first film's 4:3 operator CRT displays. A fixed 108-column glyph grid is
-illuminated by irregular falling waves with pale cursors, restrained bloom,
+the first film's 4:3 operator CRT displays. A resolution-independent 80x60
+reference density scales its glyph cells from target height and adds columns on wider windows; irregular falling waves then illuminate the grid with pale cursors, restrained bloom,
 virtual 640x480 rasterization, scanlines, phosphor texture, persistence,
 curvature and edge falloff.
   </_description>

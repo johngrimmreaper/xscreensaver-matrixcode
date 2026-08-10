@@ -9,7 +9,7 @@ Validation date: 2026-08-10 UTC.
 1. `matrixcode -self-test`
    - validates the 57-base / 114-addressable clean-room glyph atlas;
    - validates deterministic simulation initialization;
-   - checks operator-profile 4:3 geometry and 108-column grid;
+   - checks 80x60 4:3 reference density and ~107x60 widescreen extension;
    - checks cursor population and glyph index bounds.
 2. `tests/test-cli.sh`
    - verifies help/version/profile parsing;
@@ -19,8 +19,10 @@ Validation date: 2026-08-10 UTC.
    - renders a deterministic operator CRT frame through Xvfb + software GL;
    - checks dimensions, visible coverage, green dominance and bright cursor
      population;
-   - confirms the default 4:3 presentation leaves dark side areas in a 16:9
-     capture.
+   - confirms the default auto-aspect presentation populates the full 16:9 capture;
+   - performs a KDE-like burst of real X11 resizes, verifies they debounce to one
+     settled restart with added columns, then verifies maximize to 1920x1080
+     restarts again with proportionally larger cells.
 
 ## Local container validation
 

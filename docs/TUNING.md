@@ -5,12 +5,14 @@ Use `operator1999` as the baseline and change one family of variables at a time.
 ## 1. Composition first
 
 ```sh
-./matrixcode -window -profile operator1999 -aspect 4:3 -columns 108
+./matrixcode -window -profile operator1999 -aspect 4:3 -columns 80
 ```
 
-If the code feels too tiny on your physical monitor, try 96 columns.  If it
-feels too large, try 120.  This is preferable to changing only texture scaling
-because it preserves the logic of the grid.
+The 80-column setting defines the 4:3 reference density.  At 4:3 it produces
+80x60 cells; at 16:9 the default `-aspect auto` extends the same cell size to
+about 107x60 so the full window is populated.  Higher resolutions at the same
+aspect keep that logical count and enlarge the glyphs.  If you prefer larger
+glyphs, try 72 reference columns; for smaller glyphs, try 88 or 96.
 
 ## 2. Rain rhythm
 
@@ -18,7 +20,7 @@ Defaults:
 
 ```text
 density 55
-speed   100
+speed    40
 trail   18
 cycle   100
 ```
@@ -27,7 +29,7 @@ Try these variants:
 
 ```sh
 # Slightly emptier / calmer
-./matrixcode -density 48 -speed 90 -trail 20
+./matrixcode -density 48 -speed 35 -trail 20
 
 # More crowded operator wall
 ./matrixcode -density 62 -trail 21

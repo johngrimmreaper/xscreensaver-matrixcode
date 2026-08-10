@@ -29,6 +29,11 @@
 #define PI_D 3.14159265358979323846
 #define SQRT2_F 1.41421356237F
 #define SQRT5_F 2.23606797750F
+#define CRT_REFERENCE_WIDTH 640.0F
+#define CRT_REFERENCE_HEIGHT 480.0F
+#define CRT_REFERENCE_CELL 8.0F
+#define OPERATOR_REFERENCE_COLUMNS ((unsigned int)(CRT_REFERENCE_WIDTH / CRT_REFERENCE_CELL))
+#define RESIZE_SETTLE_SECONDS 0.12
 
 typedef enum profile_kind {
     PROFILE_OPERATOR_1999 = 0,
@@ -132,6 +137,12 @@ typedef struct app {
     gl_resources gl;
     simulation sim;
     unsigned long rendered_frames;
+    uint64_t base_seed;
+    unsigned long resize_serial;
+    int resize_pending;
+    int pending_width;
+    int pending_height;
+    double resize_deadline;
 } app;
 
 typedef int (*swap_interval_sgi_proc)(int);
@@ -259,14 +270,14 @@ static void options_profile_defaults(options *opts, profile_kind profile)
     opts->fps = 30;
     opts->delay_usec = 33333U;
     opts->profile = profile;
-    opts->columns = 108U;
+    opts->columns = OPERATOR_REFERENCE_COLUMNS;
     opts->density = 55;
-    opts->speed = 100;
+    opts->speed = 40;
     opts->trail = 18;
     opts->cycle = 100;
     opts->glow = 76;
     opts->contrast = 82;
-    opts->aspect = ASPECT_4_3;
+    opts->aspect = ASPECT_AUTO;
     opts->crt = 1;
     opts->curvature = 11;
     opts->scanlines = 32;
@@ -337,10 +348,10 @@ static void print_usage(FILE *stream, const char *program)
         "  -root | -window | -window-id ID\n"
         "  -geometry WxH                 preview-window size\n"
         "\nFilm geometry and rain:\n"
-        "  -columns N                    logical columns, 40..240 (operator default 108)\n"
-        "  -aspect auto|4:3|16:9|2.39:1  content framing (operator default 4:3)\n"
+        "  -columns N                    logical columns, 40..240 (operator default 80)\n"
+        "  -aspect auto|4:3|16:9|2.39:1  content framing (operator default auto)\n"
         "  -density N                    lit-cell coverage, 10..90 (default 55)\n"
-        "  -speed N                      fall speed percentage, 25..250\n"
+        "  -speed N                      fall speed percentage, 25..250 (operator default 40)\n"
         "  -trail N                      rain period/length, 6..40 (default 18)\n"
         "  -cycle N                      glyph cycling, 0..300\n"
         "  -glow N                       optical glow, 0..100\n"
@@ -402,8 +413,9 @@ static int parse_options(int argc, char **argv, options *opts)
             opts->columns = (unsigned int)number;
         } else if (strcmp(arg, "-cell-size") == 0 || strcmp(arg, "--cell-size") == 0) {
             if (!parse_long(value, 8L, 40L, &number)) return 0;
-            /* Compatibility knob: 18px maps to the film default 108 columns at 1920 width. */
-            opts->columns = (unsigned int)(1944L / number);
+            /* Compatibility knob: 18px maps to the 80-column reference grid
+             * in a 1440x1080 4:3 aperture. */
+            opts->columns = (unsigned int)(1440L / number);
             if (opts->columns < 40U) opts->columns = 40U;
             if (opts->columns > 240U) opts->columns = 240U;
         } else if (strcmp(arg, "-density") == 0 || strcmp(arg, "--density") == 0) {
@@ -520,17 +532,27 @@ static int simulation_resize(simulation *sim, const options *opts, int width, in
 {
     uint64_t saved = sim->rng.state;
     content_rect r = choose_content_rect(opts, width, height);
-    unsigned int columns = opts->columns;
-    /* Keep the logical grid square in screen space.  The glyph itself is
-     * narrower than its cell (roughly 1.35:1 height:width, matching the
-     * first-film/operator reconstruction measurements), so column spacing is
-     * independent from glyph stroke width. */
-    unsigned int rows = (unsigned int)lroundf((float)columns * r.height / r.width);
+    /* `opts->columns` is the 4:3 reference density.  Derive a reference row
+     * count from it, then size square logical cells from the drawable height.
+     * Wider windows gain columns instead of stretching the code or leaving
+     * pillarboxes; larger monitors keep the same logical density and simply
+     * render larger glyphs. */
+    unsigned int reference_rows = (unsigned int)lroundf(
+        (float)opts->columns * CRT_REFERENCE_HEIGHT / CRT_REFERENCE_WIDTH);
+    float target_cell;
+    unsigned int columns;
+    unsigned int rows;
+    if (reference_rows < 24U) reference_rows = 24U;
+    target_cell = r.height / (float)reference_rows;
+    if (target_cell < 1.0F) target_cell = 1.0F;
+    columns = (unsigned int)lroundf(r.width / target_cell);
+    rows = reference_rows;
+    if (columns < 24U) columns = 24U;
+    if (columns > 1024U) columns = 1024U;
     size_t count;
     unsigned int x, y;
     simulation_free(sim);
     sim->rng.state = saved != 0U ? saved : UINT64_C(0x6A09E667F3BCC909);
-    if (rows < 24U) rows = 24U;
     sim->columns = columns; sim->rows = rows; sim->content = r;
     sim->cell_width = r.width / (float)columns;
     sim->cell_height = r.height / (float)rows;
@@ -648,6 +670,12 @@ static float smoothstep_local(float a, float b, float x)
     return t * t * (3.0F - 2.0F * t);
 }
 
+static float crt_virtual_width(const content_rect *r)
+{
+    if (r->height <= 0.0F) return CRT_REFERENCE_WIDTH;
+    return CRT_REFERENCE_HEIGHT * (r->width / r->height);
+}
+
 static void warp_point(const options *opts, const content_rect *r, float x, float y, float *out_x, float *out_y)
 {
     float nx;
@@ -656,12 +684,13 @@ static void warp_point(const options *opts, const content_rect *r, float x, floa
         /* Quantize onto a 640x480 virtual raster before applying tube curvature.
          * This is what makes a 1440p/4K panel read like photographed late-90s video
          * instead of perfectly resolution-independent vector graphics. */
-        float lx = (x - r->x) / r->width * 640.0F;
-        float ly = (y - r->y) / r->height * 480.0F;
+        float virtual_width = crt_virtual_width(r);
+        float lx = (x - r->x) / r->width * virtual_width;
+        float ly = (y - r->y) / r->height * CRT_REFERENCE_HEIGHT;
         lx = floorf(lx + 0.5F);
         ly = floorf(ly + 0.5F);
-        x = r->x + lx / 640.0F * r->width;
-        y = r->y + ly / 480.0F * r->height;
+        x = r->x + lx / virtual_width * r->width;
+        y = r->y + ly / CRT_REFERENCE_HEIGHT * r->height;
     }
     nx = ((x - r->x) / r->width) * 2.0F - 1.0F;
     ny = ((y - r->y) / r->height) * 2.0F - 1.0F;
@@ -770,7 +799,7 @@ static void render_crt_overlay(const app *a)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     if (a->opts.scanlines > 0) {
         float alpha = (float)a->opts.scanlines / 100.0F * 0.20F;
-        float spacing = fmaxf(2.0F, r->height / 480.0F * 2.0F);
+        float spacing = fmaxf(2.0F, r->height / CRT_REFERENCE_HEIGHT * 2.0F);
         float fy;
         glLineWidth(1.0F); glBegin(GL_LINES);
         for (fy = r->y + spacing * 0.5F; fy <= r->y + r->height; fy += spacing) {
@@ -781,7 +810,7 @@ static void render_crt_overlay(const app *a)
     }
     if (a->opts.phosphor_mask > 0) {
         float alpha = (float)a->opts.phosphor_mask / 100.0F * 0.13F;
-        float spacing = fmaxf(2.0F, r->width / 640.0F * 2.0F);
+        float spacing = fmaxf(2.0F, r->width / crt_virtual_width(r) * 2.0F);
         float fx;
         glBegin(GL_LINES);
         for (fx = r->x + spacing * 0.5F; fx <= r->x + r->width; fx += spacing) {
@@ -910,6 +939,21 @@ static int select_target_window(app *a)
     return 1;
 }
 
+static uint64_t mix_seed(uint64_t value)
+{
+    value += UINT64_C(0x9e3779b97f4a7c15);
+    value = (value ^ (value >> 30U)) * UINT64_C(0xbf58476d1ce4e5b9);
+    value = (value ^ (value >> 27U)) * UINT64_C(0x94d049bb133111eb);
+    value ^= value >> 31U;
+    return value != 0U ? value : UINT64_C(0x6A09E667F3BCC909);
+}
+
+static uint64_t resize_seed(const app *a, int width, int height, unsigned long serial)
+{
+    uint64_t geometry = ((uint64_t)(unsigned int)width << 32U) | (uint64_t)(unsigned int)height;
+    return mix_seed(a->base_seed ^ geometry ^ ((uint64_t)serial * UINT64_C(0xd1342543de82ef95)));
+}
+
 static void request_swap_interval(app *a)
 {
     const char *ext;
@@ -931,7 +975,10 @@ static int app_init(app *a, const options *opts)
     memset(a, 0, sizeof(*a)); a->opts = *opts;
     a->display = XOpenDisplay(NULL); if (!a->display) { fprintf(stderr, "could not open X display\n"); return 0; }
     a->screen = DefaultScreen(a->display);
-    a->sim.rng.state = opts->seed_set ? opts->seed : (((uint64_t)time(NULL) << 32U) ^ (uint64_t)getpid() ^ UINT64_C(0x6d6174726978636f));
+    a->base_seed = opts->seed_set ? opts->seed :
+        (((uint64_t)time(NULL) << 32U) ^ (uint64_t)getpid() ^ UINT64_C(0x6d6174726978636f));
+    a->base_seed = mix_seed(a->base_seed);
+    a->sim.rng.state = a->base_seed;
     if (!select_target_window(a)) return 0;
     if (!XGetWindowAttributes(a->display, a->window, &attrs)) return 0;
     a->width = attrs.width; a->height = attrs.height;
@@ -968,19 +1015,71 @@ static void app_free(app *a)
     memset(a, 0, sizeof(*a));
 }
 
+static int restart_for_resize(app *a, int width, int height)
+{
+    if (width <= 0 || height <= 0) return 1;
+    if (width == a->width && height == a->height) return 1;
+    a->width = width;
+    a->height = height;
+    a->resize_serial++;
+    a->sim.rng.state = resize_seed(a, width, height, a->resize_serial);
+    setup_projection(width, height);
+    if (!simulation_resize(&a->sim, &a->opts, width, height)) return 0;
+    if (a->opts.verbose) {
+        fprintf(stderr,
+                "resize restart %lu: %dx%d, grid %ux%u, cell %.2fx%.2f, content %.0fx%.0f\n",
+                a->resize_serial, width, height, a->sim.columns, a->sim.rows,
+                a->sim.cell_width, a->sim.cell_height,
+                a->sim.content.width, a->sim.content.height);
+    }
+    return 1;
+}
+
+static void schedule_resize(app *a, int width, int height)
+{
+    if (width <= 0 || height <= 0) return;
+    if (!a->resize_pending && width == a->width && height == a->height) return;
+    if (a->resize_pending && width == a->pending_width && height == a->pending_height) return;
+    a->resize_pending = 1;
+    a->pending_width = width;
+    a->pending_height = height;
+    a->resize_deadline = monotonic_seconds() + RESIZE_SETTLE_SECONDS;
+}
+
+static int sync_window_geometry(app *a)
+{
+    XWindowAttributes attrs;
+    if (!XGetWindowAttributes(a->display, a->window, &attrs)) return 0;
+    if (attrs.width != a->width || attrs.height != a->height)
+        schedule_resize(a, attrs.width, attrs.height);
+    return 1;
+}
+
 static int process_events(app *a)
 {
     while (XPending(a->display) > 0) {
-        XEvent ev; XNextEvent(a->display, &ev);
-        if (ev.type == ConfigureNotify) {
-            int w = ev.xconfigure.width, h = ev.xconfigure.height;
-            if (w > 0 && h > 0 && (w != a->width || h != a->height)) {
-                a->width = w; a->height = h; setup_projection(w, h);
-                if (!simulation_resize(&a->sim, &a->opts, w, h)) return 0;
-            }
-        } else if (ev.type == ClientMessage && a->owned_window != None && (Atom)ev.xclient.data.l[0] == a->wm_delete) return 0;
-        else if ((ev.type == KeyPress || ev.type == ButtonPress) && a->owned_window != None) return 0;
+        XEvent ev;
+        XNextEvent(a->display, &ev);
+        if (ev.type == ConfigureNotify && ev.xconfigure.window == a->window) {
+            schedule_resize(a, ev.xconfigure.width, ev.xconfigure.height);
+        } else if (ev.type == ClientMessage && a->owned_window != None &&
+                   (Atom)ev.xclient.data.l[0] == a->wm_delete) {
+            return 0;
+        } else if ((ev.type == KeyPress || ev.type == ButtonPress) && a->owned_window != None) {
+            return 0;
+        }
     }
+    return 1;
+}
+
+static int apply_settled_resize(app *a, int *did_restart)
+{
+    *did_restart = 0;
+    if (!a->resize_pending) return 1;
+    if (monotonic_seconds() < a->resize_deadline) return 1;
+    if (!restart_for_resize(a, a->pending_width, a->pending_height)) return 0;
+    a->resize_pending = 0;
+    *did_restart = 1;
     return 1;
 }
 
@@ -991,8 +1090,23 @@ static int run_app(app *a)
     int screenshot_written = 0;
     while (!stop_requested) {
         double now, elapsed, delta;
+        int restarted = 0;
         if (!process_events(a)) break;
+        /* ConfigureNotify is the normal path. Poll periodically as a fallback
+         * for reparenting/embedding setups that resize the drawable without a
+         * useful configure event reaching the hack. */
+        if ((a->rendered_frames % 15UL) == 0UL) {
+            if (!sync_window_geometry(a)) break;
+        }
+        if (!apply_settled_resize(a, &restarted)) break;
         now = monotonic_seconds();
+        if (restarted) {
+            start = now;
+            previous = now;
+            next_frame = now;
+            a->rendered_frames = 0UL;
+            screenshot_written = 0;
+        }
         if (now < next_frame) { sleep_seconds(next_frame - now); now = monotonic_seconds(); }
         if (a->opts.seed_set) { elapsed = (double)a->rendered_frames * frame_interval; delta = frame_interval; }
         else { elapsed = now - start; delta = now - previous; if (delta < 0.0 || delta > 0.25) delta = frame_interval; }
@@ -1016,8 +1130,37 @@ static int simulation_self_test(void)
     options_profile_defaults(&opts, PROFILE_OPERATOR_1999); memset(&a, 0, sizeof(a)); memset(&b, 0, sizeof(b));
     a.rng.state = UINT64_C(0x12345678abcdef01); b.rng.state = UINT64_C(0x12345678abcdef01);
     if (!simulation_resize(&a, &opts, 1920, 1080) || !simulation_resize(&b, &opts, 1920, 1080)) return 0;
-    if (a.columns != 108U || a.rows != 81U || fabsf(a.content.width - 1440.0F * 0.98F) > 2.0F) {
-        fprintf(stderr, "self-test: operator geometry unexpected: %ux%u %.1fx%.1f\n", a.columns, a.rows, a.content.width, a.content.height); ok = 0;
+    if (a.columns != 107U || a.rows != 60U || fabsf(a.content.width - 1920.0F * 0.98F) > 2.0F ||
+        fabsf(a.cell_height - 17.64F) > 0.20F) {
+        fprintf(stderr, "self-test: operator geometry unexpected: %ux%u %.1fx%.1f cell %.2f\n",
+                a.columns, a.rows, a.content.width, a.content.height, a.cell_height); ok = 0;
+    }
+    {
+        simulation large;
+        memset(&large, 0, sizeof(large));
+        large.rng.state = UINT64_C(0x12345678abcdef01);
+        if (!simulation_resize(&large, &opts, 3840, 2160)) return 0;
+        if (large.columns != 107U || large.rows != 60U ||
+            large.cell_height < a.cell_height * 1.95F || large.cell_height > a.cell_height * 2.05F) {
+            fprintf(stderr, "self-test: resolution scaling unexpected: 1080p %.2f, 4K %.2f\n",
+                    a.cell_height, large.cell_height);
+            ok = 0;
+        }
+        simulation_free(&large);
+    }
+    {
+        simulation four_three;
+        memset(&four_three, 0, sizeof(four_three));
+        four_three.rng.state = UINT64_C(0x12345678abcdef01);
+        opts.aspect = ASPECT_4_3;
+        if (!simulation_resize(&four_three, &opts, 1920, 1080)) return 0;
+        if (four_three.columns != 80U || four_three.rows != 60U) {
+            fprintf(stderr, "self-test: explicit 4:3 reference grid unexpected: %ux%u\n",
+                    four_three.columns, four_three.rows);
+            ok = 0;
+        }
+        simulation_free(&four_three);
+        opts.aspect = ASPECT_AUTO;
     }
     if (memcmp(a.cells, b.cells, (size_t)a.columns * a.rows * sizeof(*a.cells)) != 0 ||
         memcmp(a.column, b.column, (size_t)a.columns * sizeof(*a.column)) != 0) { fprintf(stderr, "self-test: seeded simulations differ\n"); ok = 0; }

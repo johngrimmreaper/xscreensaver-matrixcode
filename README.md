@@ -41,9 +41,9 @@ font-size constant.
 Designed for the green code seen on the operators' CRT displays in the first
 film:
 
-- 108 logical columns;
+- 80x60 reference density at 4:3, extended horizontally on wider targets;
 - square logical cell grid with tall/narrow ~1.35:1 glyph quads;
-- 4:3 content aperture centered inside any modern display;
+- full-window composition by default, with square-cell density derived from height;
 - flat luminous rain bodies with pale green-white cursors;
 - irregular per-column timing and speed;
 - slow independent glyph cycling;
@@ -124,7 +124,7 @@ Restart `xscreensaver-settings` after installation.  Direct full-screen testing:
 Start by changing **geometry**, not color:
 
 ```text
--columns       logical code columns (default 108)
+-columns       logical code columns (default 80; lower = larger glyphs)
 -aspect        auto, 4:3, 16:9, or 2.39:1
 -density       visible portion of the rain cycle
 -speed         fall speed
@@ -146,6 +146,24 @@ Then tune the photographic treatment:
 ```
 
 See `docs/TUNING.md` and `matrixcode(6x)` for details.
+
+## Resize and multi-monitor behavior
+
+MatrixCode derives cell dimensions from the actual drawable size.  The 4:3
+reference density is 80x60, but the default operator profile fills the complete
+target window: height determines the glyph scale and wider windows gain extra
+columns.  For example, 16:9 uses about 107x60 at the same glyph size.  A larger
+monitor at the same aspect keeps that logical composition and scales the glyphs
+up proportionally.  A settled resize is treated as a fresh simulation start:
+projection, grid allocation, random rain state and animation time are restarted
+for the new drawable.
+
+When launched by XScreenSaver, `XSCREENSAVER_WINDOW` is honored.  XScreenSaver
+creates a window for each physical monitor and launches a hack process for each
+one, so each MatrixCode instance independently sizes itself to its monitor.
+For direct `-root` use on a unified multi-monitor X root, the default `-aspect
+auto` fills that complete root.  Use `-aspect 4:3` only when deliberate
+pillarboxing is desired.
 
 ## Clean-room boundary
 

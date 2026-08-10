@@ -66,6 +66,6 @@ if bright < 8:
     raise SystemExit(f'too few pale cursor pixels: {bright}')
 edge = (left_g/left_n + right_g/right_n)/2
 center = center_g/center_n
-if edge > max(1.0, center * 0.12):
-    raise SystemExit(f'4:3 pillarbox not dark enough: edge={edge:.2f}, center={center:.2f}')
+if edge < 0.25:
+    raise SystemExit(f'auto-aspect edges unexpectedly empty: edge={edge:.2f}, center={center:.2f}')
 print(f'PPM OK: {w}x{h}, visible={visible/count:.1%}, bright={bright}, edgeG={edge:.2f}, centerG={center:.2f}')

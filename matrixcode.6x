@@ -10,11 +10,14 @@ renders a fixed grid of original clean-room glyphs whose illumination moves
 downward in independently timed waves.  The default operator1999 profile uses a
 4:3 aperture and restrained CRT emulation to resemble photographed late-1990s
 workstation displays rather than a generic full-screen neon text effect.
+Window-size changes rebuild the simulation and restart animation timing so the
+new drawable is filled immediately at the same logical composition.
 .SH PROFILES
 .TP
 .B -profile operator1999
-Default.  108 columns, 4:3 framing, flat luminous rain bodies, bright cursors,
-and CRT treatment.
+Default.  80x60 reference density at 4:3, automatically extended with more
+columns on wider targets, flat luminous rain bodies, bright cursors, and CRT
+treatment.  Glyph pixel size is derived from target height.
 .TP
 .B -profile opening1999
 Cleaner cinematic presentation without CRT treatment.
@@ -24,7 +27,7 @@ Neutral modern rendering for comparison and low-cost operation.
 .SH GEOMETRY AND RAIN
 .TP
 .BI -columns " N"
-Logical columns, 40 to 240.  Default 108.
+4:3 reference columns, 40 to 240.  Default 80.  Lower values produce larger glyphs; auto aspect may add columns to fill wider targets.
 .TP
 .BI -aspect " auto|4:3|16:9|2.39:1"
 Frame the code independently of the physical desktop aspect.
@@ -33,7 +36,7 @@ Frame the code independently of the physical desktop aspect.
 Illuminated fraction of the rain cycle, 10 to 90.
 .TP
 .BI -speed " N"
-Fall-speed percentage, 25 to 250.
+Fall-speed percentage, 25 to 250.  The operator default is 40.
 .TP
 .BI -trail " N"
 Rain period / luminous-run control, 6 to 40.
@@ -77,7 +80,8 @@ Draw into the root window.
 Create a preview window.
 .TP
 .BI -window-id " ID"
-Draw into an existing X window.  XSCREENSAVER_WINDOW is also honored.
+Draw into an existing X window.  XSCREENSAVER_WINDOW is also honored; this is
+how XScreenSaver supplies one target window per physical monitor.
 .TP
 .BI -geometry " WxH"
 Preview-window geometry.
