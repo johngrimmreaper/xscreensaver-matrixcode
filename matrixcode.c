@@ -12,6 +12,7 @@
 #endif
 
 #include "glyphs.h"
+#include "scene.h"
 
 #include <errno.h>
 #include <math.h>
@@ -82,6 +83,7 @@ typedef struct options {
     int verbose;
     int self_test;
     const char *screenshot_path;
+    matrix_scene_kind startup_scene;
 } options;
 
 typedef struct cell {
@@ -285,6 +287,7 @@ static void options_profile_defaults(options *opts, profile_kind profile)
     opts->vignette = 30;
     opts->persistence = 14;
     opts->overscan = 2;
+    opts->startup_scene = MATRIX_SCENE_NEO_TERMINAL;
     if (profile == PROFILE_OPENING_1999) {
         opts->aspect = ASPECT_CINEMA;
         opts->crt = 0;
@@ -331,7 +334,7 @@ static int option_takes_value(const char *arg)
         "-cycle", "--cycle", "-glow", "--glow", "-contrast", "--contrast", "-aspect", "--aspect",
         "-curvature", "--curvature", "-scanlines", "--scanlines", "-phosphor-mask", "--phosphor-mask",
         "-vignette", "--vignette", "-persistence", "--persistence", "-overscan", "--overscan",
-        "-seed", "--seed", "-frames", "--frames", "-screenshot", "--screenshot"
+        "-seed", "--seed", "-frames", "--frames", "-screenshot", "--screenshot", "-scene", "--scene"
     };
     size_t i;
     for (i = 0U; i < sizeof(names) / sizeof(names[0]); i++) if (strcmp(arg, names[i]) == 0) return 1;
@@ -346,6 +349,7 @@ static void print_usage(FILE *stream, const char *program)
         "  -profile operator1999|opening1999|clean  visual preset (default operator1999)\n"
         "\nXScreenSaver/window options:\n"
         "  -root | -window | -window-id ID\n"
+        "  -scene neo-terminal | -no-scene startup scene (default neo-terminal)\n"
         "  -geometry WxH                 preview-window size\n"
         "\nFilm geometry and rain:\n"
         "  -columns N                    logical columns, 40..240 (operator default 80)\n"
@@ -393,6 +397,11 @@ static int parse_options(int argc, char **argv, options *opts)
                 strcmp(value, "opening") != 0 && strcmp(value, "opening1999") != 0 && strcmp(value, "clean") != 0) {
                 fprintf(stderr, "invalid profile: %s\n", value); return 0;
             }
+        } else if (strcmp(arg, "-scene") == 0 || strcmp(arg, "--scene") == 0) {
+            opts->startup_scene = matrix_scene_from_name(value);
+            if (opts->startup_scene == MATRIX_SCENE_NONE) { fprintf(stderr, "invalid scene: %s\n", value); return 0; }
+        } else if (strcmp(arg, "-no-scene") == 0 || strcmp(arg, "--no-scene") == 0) {
+            opts->startup_scene = MATRIX_SCENE_NONE;
         } else if (strcmp(arg, "-root") == 0 || strcmp(arg, "--root") == 0) {
             opts->root_mode = 1; opts->window_mode = 0; opts->have_window_id = 0;
         } else if (strcmp(arg, "-window") == 0 || strcmp(arg, "--window") == 0) {
@@ -791,14 +800,14 @@ static void render_rain_layer(const app *a, double t, float opacity, int glow_pa
     glEnd();
 }
 
-static void render_crt_overlay(const app *a)
+static void render_crt_overlay(const app *a, float opacity)
 {
     const content_rect *r = &a->sim.content;
     glDisable(GL_TEXTURE_2D);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     if (a->opts.scanlines > 0) {
-        float alpha = (float)a->opts.scanlines / 100.0F * 0.20F;
+        float alpha = (float)a->opts.scanlines / 100.0F * 0.20F * opacity;
         float spacing = fmaxf(2.0F, r->height / CRT_REFERENCE_HEIGHT * 2.0F);
         float fy;
         glLineWidth(1.0F); glBegin(GL_LINES);
@@ -809,7 +818,7 @@ static void render_crt_overlay(const app *a)
         glEnd();
     }
     if (a->opts.phosphor_mask > 0) {
-        float alpha = (float)a->opts.phosphor_mask / 100.0F * 0.13F;
+        float alpha = (float)a->opts.phosphor_mask / 100.0F * 0.13F * opacity;
         float spacing = fmaxf(2.0F, r->width / crt_virtual_width(r) * 2.0F);
         float fx;
         glBegin(GL_LINES);
@@ -822,9 +831,11 @@ static void render_crt_overlay(const app *a)
     glEnable(GL_TEXTURE_2D);
 }
 
-static void render_frame(app *a, double t)
+static void render_frame(app *a, double t, float opacity, int clear_frame)
 {
-    glClearColor(0.0F, 0.0010F, 0.0002F, 1.0F); glClear(GL_COLOR_BUFFER_BIT);
+    if (clear_frame) {
+        glClearColor(0.0F, 0.0010F, 0.0002F, 1.0F); glClear(GL_COLOR_BUFFER_BIT);
+    }
     glLoadIdentity();
     glEnable(GL_TEXTURE_2D); glEnable(GL_BLEND);
     glDisable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE); glDisable(GL_LIGHTING);
@@ -833,18 +844,18 @@ static void render_frame(app *a, double t)
     if (a->opts.crt && a->opts.persistence > 0) {
         float p = (float)a->opts.persistence / 100.0F * 0.36F;
         glBindTexture(GL_TEXTURE_2D, a->gl.glow_texture);
-        render_rain_layer(a, t - 1.0 / 60.0, p, 1, 0.58F);
+        render_rain_layer(a, t - 1.0 / 60.0, p * opacity, 1, 0.58F);
         glBindTexture(GL_TEXTURE_2D, a->gl.core_texture);
-        render_rain_layer(a, t - 1.0 / 60.0, p * 0.45F, 0, 0.0F);
+        render_rain_layer(a, t - 1.0 / 60.0, p * 0.45F * opacity, 0, 0.0F);
     }
     if (a->opts.glow > 0) {
         glBindTexture(GL_TEXTURE_2D, a->gl.glow_texture);
-        render_rain_layer(a, t, 0.38F, 1, 0.78F);
-        render_rain_layer(a, t, 0.70F, 1, 0.34F);
+        render_rain_layer(a, t, 0.38F * opacity, 1, 0.78F);
+        render_rain_layer(a, t, 0.70F * opacity, 1, 0.34F);
     }
     glBindTexture(GL_TEXTURE_2D, a->gl.core_texture);
-    render_rain_layer(a, t, 1.0F, 0, 0.0F);
-    if (a->opts.crt) render_crt_overlay(a);
+    render_rain_layer(a, t, opacity, 0, 0.0F);
+    if (a->opts.crt) render_crt_overlay(a, opacity);
     glFlush();
 }
 
@@ -993,6 +1004,7 @@ static int app_init(app *a, const options *opts)
     if (!simulation_resize(&a->sim, &a->opts, a->width, a->height)) return 0;
     if (a->opts.verbose) {
         const GLubyte *vendor = glGetString(GL_VENDOR), *renderer = glGetString(GL_RENDERER), *version = glGetString(GL_VERSION);
+        fprintf(stderr, "scene: %s\n", matrix_scene_name(a->opts.startup_scene));
         fprintf(stderr, "profile: %s, grid: %ux%u, cell %.2fx%.2f, content %.0fx%.0f\n",
                 profile_name(a->opts.profile), a->sim.columns, a->sim.rows, a->sim.cell_width, a->sim.cell_height,
                 a->sim.content.width, a->sim.content.height);
@@ -1111,8 +1123,23 @@ static int run_app(app *a)
         if (a->opts.seed_set) { elapsed = (double)a->rendered_frames * frame_interval; delta = frame_interval; }
         else { elapsed = now - start; delta = now - previous; if (delta < 0.0 || delta > 0.25) delta = frame_interval; }
         previous = now;
-        simulation_update(&a->sim, &a->opts, delta);
-        render_frame(a, elapsed); a->rendered_frames++;
+        if (a->opts.startup_scene != MATRIX_SCENE_NONE &&
+            elapsed < matrix_scene_duration(a->opts.startup_scene)) {
+            double rain_start = matrix_scene_rain_start(a->opts.startup_scene);
+            float rain_opacity = matrix_scene_rain_opacity(a->opts.startup_scene, elapsed);
+            (void)matrix_scene_render(a->opts.startup_scene, elapsed, a->width, a->height);
+            if (rain_opacity > 0.0F) {
+                simulation_update(&a->sim, &a->opts, delta);
+                render_frame(a, elapsed - rain_start, rain_opacity, 0);
+            }
+        } else {
+            double rain_elapsed = elapsed;
+            if (a->opts.startup_scene != MATRIX_SCENE_NONE)
+                rain_elapsed -= matrix_scene_rain_start(a->opts.startup_scene);
+            simulation_update(&a->sim, &a->opts, delta);
+            render_frame(a, rain_elapsed, 1.0F, 1);
+        }
+        a->rendered_frames++;
         if (a->opts.frames > 0UL && a->rendered_frames >= a->opts.frames && a->opts.screenshot_path)
             screenshot_written = write_ppm(a, a->opts.screenshot_path);
         if (a->double_buffer) glXSwapBuffers(a->display, a->window); else glFlush();
@@ -1180,6 +1207,7 @@ static int simulation_self_test(void)
 static int run_self_tests(void)
 {
     if (!matrixcode_glyphs_self_test()) return 0;
+    if (!matrix_scene_self_test()) return 0;
     if (!simulation_self_test()) return 0;
     printf("matrixcode: all self-tests passed\n"); return 1;
 }
