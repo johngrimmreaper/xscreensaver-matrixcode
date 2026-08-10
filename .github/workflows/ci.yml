@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test-package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkgconf libx11-dev libgl-dev \
+            libgl1-mesa-dri xvfb xauth python3 debhelper lintian
+      - name: Build and test
+        run: |
+          make -j2
+          make check
+      - name: Build Debian package
+        run: dpkg-buildpackage -us -uc -b
+      - name: Lintian
+        run: lintian ../xscreensaver-matrixcode_*.changes || true

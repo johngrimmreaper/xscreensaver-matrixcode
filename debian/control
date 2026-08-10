@@ -9,7 +9,6 @@ Build-Depends:
  libx11-dev,
  pkgconf,
  python3,
- x11-utils,
  xauth,
  xvfb
 Standards-Version: 4.7.0
@@ -24,14 +23,11 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
  xscreensaver
-Description: faithful lightweight digital code rain for XScreenSaver
- MatrixCode is a standalone OpenGL/GLX XScreenSaver hack inspired by the flat,
- sparse digital rain aesthetic of the original Matrix films.
+Description: film-fidelity Matrix-style digital rain for XScreenSaver
+ MatrixCode is a standalone OpenGL/GLX XScreenSaver hack inspired by the
+ original-era Matrix digital-rain aesthetic.
  .
- It uses an original clean-room atlas of narrow katakana-inspired forms,
- mirrored variants, digits, and punctuation. Stationary glyphs are illuminated
- by independently falling pulses with pale heads, irregular green tails, and a
- lightweight two-pass glow. No film assets or third-party fonts are included.
- .
- The fixed-function renderer avoids mandatory shaders and framebuffers, making
- it suitable for old or low-power X11 systems.
+ Its default profile uses an original clean-room glyph atlas, a fixed
+ resolution-independent code grid, independently timed illumination waves,
+ pale cursor cells, restrained optical glow and a lightweight 4:3 CRT display
+ treatment. No film assets or third-party glyph textures are included.

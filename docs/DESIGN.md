@@ -1,72 +1,54 @@
-# Design and fidelity
+# Design
 
-## Visual target
+## Visual model
 
-The target is the readable 2D code rain from the original-film era, not a
-literal 3D waterfall and not a wall filled uniformly with moving text. The
-implementation therefore separates **glyph placement** from **light motion**:
-characters occupy a fixed rectangular grid while pulses change their
-brightness as they descend.
+MatrixCode separates glyph state from light state.  Cells occupy a stable grid;
+the apparent downward motion comes from independently timed illumination waves.
+The 0.2 operator profile uses a thresholded, nearly flat luminous body and a
+bright cursor at the wave discontinuity instead of a conventional smooth
+head-to-tail gradient.
 
-That distinction matters. Moving every character object creates mechanically
-sliding strings; moving an illumination envelope through a stable grid creates
-the impression that symbols are being awakened, replaced, and left to decay.
+## Grid and typography
 
-## Glyph language
+The operator profile uses 108 columns.  Rows are calculated from the framed
+content aspect ratio so logical cells stay square in screen space.  The glyph
+quad itself is narrower than the cell, approximately 1.35:1 height-to-width,
+leaving visible column separation.
 
 The atlas contains 57 original 8x12 base glyphs:
 
-- 33 narrow katakana-inspired abstract forms;
-- 10 decimal digits;
-- 14 punctuation and technical symbols.
+- 33 katakana-inspired abstract forms;
+- 10 digits;
+- 14 punctuation / technical symbols.
 
-Every base form also has a horizontal mirror, for 114 addressable glyphs. The
-selection is weighted toward the kana-inspired set. Mirroring is common but not
-universal so that the image looks designed rather than mechanically reflected.
-The source patterns are deliberately stored as readable bitmaps in `glyphs.c`.
+Horizontal mirrors provide 114 addressable glyphs.  Selection remains weighted
+toward the kana-inspired set.
 
-The forms are inspirations rather than a usable Japanese typeface. Several are
-hybrids or deliberately malformed, matching the visual role of encoded symbols
-rather than pretending to be normal written Japanese.
+## Rain rhythm
 
-## Motion model
+Each column receives a deterministic pseudo-random phase, speed multiplier and
+small brightness multiplier.  A smoothly perturbed sawtooth-like phase creates
+non-mechanical changes in trail length and spacing without allocating objects
+per drop.
 
-Each column is initialized with:
+## Color
 
-- an active/inactive state;
-- one or occasionally two pulses;
-- a speed selected within a restrained range;
-- an independent period and phase;
-- a varied trail length;
-- a slight brightness multiplier.
+Ordinary code is saturated green.  Cursor cells add substantial red and some
+blue so they approach a pale mint-white rather than simply becoming a brighter
+version of the same green.
 
-The leading cell is made pale and relatively sharp. Behind it, a nonlinear
-falloff produces a bright shoulder and a long dim tail. Small deterministic
-noise prevents mathematically smooth gradients. Head passage can replace a
-cell's glyph; a much slower global process changes occasional background cells.
+## CRT mode
 
-## Color and glow
+`operator1999` uses a lightweight fixed-function CRT approximation:
 
-The core pass uses near-black through saturated green, with increasing red and
-blue only near the head. This lets the leading glyph approach pale mint-white
-without bleaching the entire trail.
+- 640x480 virtual raster snapping;
+- nearest core sampling and linear glow sampling;
+- two additive glow scales;
+- mild phosphor persistence;
+- barrel curvature;
+- scanline and vertical-mask overlays;
+- vignette and overscan;
+- 4:3 framing.
 
-The glow pass reuses a pre-expanded alpha atlas with additive blending. It is
-not physically based bloom, but at normal screen-saver viewing distance it
-provides the soft optical halo at a fraction of the cost of render-to-texture
-blur chains.
-
-## Deliberate exclusions
-
-MatrixCode does not implement:
-
-- 3D camera motion;
-- tumbling characters;
-- perspective columns;
-- a shader-only renderer;
-- post-processing framebuffers;
-- copied film glyph sheets;
-- random Unicode rendered from a system font.
-
-Those choices keep the image closer to the intended flat code-rain aesthetic
-and make the program practical on machines with old Mesa stacks.
+It deliberately avoids shader/FBO requirements to preserve compatibility with
+old X11/GLX systems.

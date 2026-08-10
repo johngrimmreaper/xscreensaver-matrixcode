@@ -2,12 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-typedef struct glyph_definition {
-    const char *name;
-    uint8_t rows[MATRIXCODE_GLYPH_HEIGHT];
-} glyph_definition;
-
+typedef struct glyph_definition { const char *name; uint8_t rows[MATRIXCODE_GLYPH_HEIGHT]; } glyph_definition;
 static const glyph_definition glyphs[] = {
     {"MO", {0x00, 0x00, 0x3c, 0x00, 0x3c, 0x10, 0x10, 0x10, 0x12, 0x0c, 0x00, 0x00}},
     {"E", {0x00, 0x00, 0x3c, 0x08, 0x08, 0x3c, 0x08, 0x08, 0x3e, 0x00, 0x00, 0x00}},
@@ -72,230 +67,113 @@ static const glyph_definition glyphs[] = {
 static unsigned int next_power_of_two(unsigned int value)
 {
     unsigned int result = 1U;
-    while (result < value) {
-        result <<= 1U;
-    }
+    while (result < value) result <<= 1U;
     return result;
 }
 
-size_t matrixcode_base_glyph_count(void)
-{
-    return sizeof(glyphs) / sizeof(glyphs[0]);
-}
+size_t matrixcode_base_glyph_count(void) { return sizeof(glyphs) / sizeof(glyphs[0]); }
+size_t matrixcode_total_glyph_count(void) { return matrixcode_base_glyph_count() * 2U; }
+const char *matrixcode_glyph_name(size_t index) { return glyphs[index % matrixcode_base_glyph_count()].name; }
+const uint8_t *matrixcode_glyph_rows(size_t index) { return glyphs[index % matrixcode_base_glyph_count()].rows; }
 
-size_t matrixcode_total_glyph_count(void)
-{
-    return matrixcode_base_glyph_count() * 2U;
-}
-
-const char *matrixcode_glyph_name(size_t index)
-{
-    size_t base = index % matrixcode_base_glyph_count();
-    return glyphs[base].name;
-}
-
-const uint8_t *matrixcode_glyph_rows(size_t index)
-{
-    size_t base = index % matrixcode_base_glyph_count();
-    return glyphs[base].rows;
-}
-
-static uint8_t source_pixel(size_t glyph_index, unsigned int sx,
-                            unsigned int sy)
+static uint8_t source_pixel(size_t glyph_index, unsigned int sx, unsigned int sy)
 {
     size_t base = glyph_index % matrixcode_base_glyph_count();
     int mirrored = glyph_index >= matrixcode_base_glyph_count();
     unsigned int bit = mirrored ? sx : (MATRIXCODE_GLYPH_WIDTH - 1U - sx);
-    return (uint8_t) (((glyphs[base].rows[sy] >> bit) & 1U) ? 255U : 0U);
+    return (uint8_t)(((glyphs[base].rows[sy] >> bit) & 1U) ? 255U : 0U);
 }
 
-static void box_blur(const uint8_t *source, uint8_t *destination,
-                     unsigned int width, unsigned int height,
-                     unsigned int radius)
+static void box_blur(const uint8_t *src, uint8_t *dst, unsigned int w, unsigned int h, unsigned int radius)
 {
-    unsigned int x;
-    unsigned int y;
-    for (y = 0U; y < height; y++) {
-        for (x = 0U; x < width; x++) {
-            unsigned int sum = 0U;
-            unsigned int count = 0U;
-            int yy;
-            int xx;
-            for (yy = (int) y - (int) radius;
-                 yy <= (int) y + (int) radius; yy++) {
-                if (yy < 0 || yy >= (int) height) {
-                    continue;
-                }
-                for (xx = (int) x - (int) radius;
-                     xx <= (int) x + (int) radius; xx++) {
-                    if (xx < 0 || xx >= (int) width) {
-                        continue;
-                    }
-                    sum += source[(size_t) yy * width + (unsigned int) xx];
+    unsigned int x, y;
+    for (y = 0U; y < h; y++) {
+        for (x = 0U; x < w; x++) {
+            unsigned int sum = 0U, count = 0U;
+            int yy, xx;
+            for (yy = (int)y - (int)radius; yy <= (int)y + (int)radius; yy++) {
+                if (yy < 0 || yy >= (int)h) continue;
+                for (xx = (int)x - (int)radius; xx <= (int)x + (int)radius; xx++) {
+                    if (xx < 0 || xx >= (int)w) continue;
+                    sum += src[(size_t)yy * w + (unsigned int)xx];
                     count++;
                 }
             }
-            destination[(size_t) y * width + x] =
-                (uint8_t) (count == 0U ? 0U : sum / count);
+            dst[(size_t)y * w + x] = (uint8_t)(count == 0U ? 0U : sum / count);
         }
     }
 }
 
 int matrixcode_build_atlas(matrixcode_atlas *atlas)
 {
-    const unsigned int scale = 4U;
-    const unsigned int padding = 7U;
-    const unsigned int atlas_columns = 16U;
+    const unsigned int scale = 4U, padding = 7U, atlas_columns = 16U;
     const unsigned int cell_width = MATRIXCODE_GLYPH_WIDTH * scale + padding * 2U;
     const unsigned int cell_height = MATRIXCODE_GLYPH_HEIGHT * scale + padding * 2U;
-    const unsigned int glyph_count = (unsigned int) matrixcode_total_glyph_count();
+    const unsigned int glyph_count = (unsigned int)matrixcode_total_glyph_count();
     const unsigned int atlas_rows = (glyph_count + atlas_columns - 1U) / atlas_columns;
     const unsigned int width = next_power_of_two(cell_width * atlas_columns);
     const unsigned int height = next_power_of_two(cell_height * atlas_rows);
-    const size_t pixels = (size_t) width * height;
-    uint8_t *mask = NULL;
-    uint8_t *soft = NULL;
-    uint8_t *blurred = NULL;
-    unsigned int glyph;
-    unsigned int x;
-    unsigned int y;
-
-    if (atlas == NULL) {
-        return 0;
-    }
+    const size_t pixels = (size_t)width * height;
+    uint8_t *mask = NULL, *soft = NULL, *blurred = NULL;
+    unsigned int glyph, x, y;
+    if (atlas == NULL) return 0;
     memset(atlas, 0, sizeof(*atlas));
-
-    mask = calloc(pixels, 1U);
-    soft = calloc(pixels, 1U);
-    blurred = calloc(pixels, 1U);
-    atlas->core_rgba = calloc(pixels, 4U);
-    atlas->glow_rgba = calloc(pixels, 4U);
-    if (mask == NULL || soft == NULL || blurred == NULL ||
-        atlas->core_rgba == NULL || atlas->glow_rgba == NULL) {
-        free(mask);
-        free(soft);
-        free(blurred);
-        matrixcode_free_atlas(atlas);
-        return 0;
+    mask = calloc(pixels, 1U); soft = calloc(pixels, 1U); blurred = calloc(pixels, 1U);
+    atlas->core_rgba = calloc(pixels, 4U); atlas->glow_rgba = calloc(pixels, 4U);
+    if (!mask || !soft || !blurred || !atlas->core_rgba || !atlas->glow_rgba) {
+        free(mask); free(soft); free(blurred); matrixcode_free_atlas(atlas); return 0;
     }
-
     for (glyph = 0U; glyph < glyph_count; glyph++) {
-        unsigned int column = glyph % atlas_columns;
-        unsigned int row = glyph / atlas_columns;
-        unsigned int origin_x = column * cell_width + padding;
-        unsigned int origin_y = row * cell_height + padding;
-        unsigned int sy;
-        unsigned int sx;
-        for (sy = 0U; sy < MATRIXCODE_GLYPH_HEIGHT; sy++) {
-            for (sx = 0U; sx < MATRIXCODE_GLYPH_WIDTH; sx++) {
-                uint8_t value = source_pixel(glyph, sx, sy);
-                unsigned int py;
-                unsigned int px;
-                if (value == 0U) {
-                    continue;
-                }
-                for (py = 0U; py < scale; py++) {
-                    for (px = 0U; px < scale; px++) {
-                        unsigned int ax = origin_x + sx * scale + px;
-                        unsigned int ay = origin_y + sy * scale + py;
-                        mask[(size_t) ay * width + ax] = value;
-                    }
-                }
-            }
+        unsigned int col = glyph % atlas_columns, row = glyph / atlas_columns;
+        unsigned int ox = col * cell_width + padding, oy = row * cell_height + padding;
+        unsigned int sy, sx;
+        for (sy = 0U; sy < MATRIXCODE_GLYPH_HEIGHT; sy++) for (sx = 0U; sx < MATRIXCODE_GLYPH_WIDTH; sx++) {
+            uint8_t value = source_pixel(glyph, sx, sy);
+            unsigned int py, px;
+            if (!value) continue;
+            for (py = 0U; py < scale; py++) for (px = 0U; px < scale; px++)
+                mask[(size_t)(oy + sy * scale + py) * width + (ox + sx * scale + px)] = value;
         }
     }
-
     box_blur(mask, soft, width, height, 1U);
     box_blur(soft, blurred, width, height, 4U);
-
-    for (y = 0U; y < height; y++) {
-        for (x = 0U; x < width; x++) {
-            size_t p = (size_t) y * width + x;
-            size_t q = p * 4U;
-            unsigned int core_alpha = (unsigned int) mask[p] * 3U / 4U +
-                                      (unsigned int) soft[p] / 4U;
-            unsigned int glow_alpha = (unsigned int) blurred[p] * 3U;
-            if (core_alpha > 255U) {
-                core_alpha = 255U;
-            }
-            if (glow_alpha > 255U) {
-                glow_alpha = 255U;
-            }
-            atlas->core_rgba[q + 0U] = 255U;
-            atlas->core_rgba[q + 1U] = 255U;
-            atlas->core_rgba[q + 2U] = 255U;
-            atlas->core_rgba[q + 3U] = (uint8_t) core_alpha;
-            atlas->glow_rgba[q + 0U] = 255U;
-            atlas->glow_rgba[q + 1U] = 255U;
-            atlas->glow_rgba[q + 2U] = 255U;
-            atlas->glow_rgba[q + 3U] = (uint8_t) glow_alpha;
-        }
+    for (y = 0U; y < height; y++) for (x = 0U; x < width; x++) {
+        size_t p = (size_t)y * width + x, q = p * 4U;
+        unsigned int ca = (unsigned int)mask[p] * 3U / 4U + (unsigned int)soft[p] / 4U;
+        unsigned int ga = (unsigned int)blurred[p] * 3U;
+        if (ca > 255U) ca = 255U;
+        if (ga > 255U) ga = 255U;
+        atlas->core_rgba[q] = atlas->core_rgba[q+1U] = atlas->core_rgba[q+2U] = 255U;
+        atlas->core_rgba[q+3U] = (uint8_t)ca;
+        atlas->glow_rgba[q] = atlas->glow_rgba[q+1U] = atlas->glow_rgba[q+2U] = 255U;
+        atlas->glow_rgba[q+3U] = (uint8_t)ga;
     }
-
-    atlas->width = width;
-    atlas->height = height;
-    atlas->cell_width = cell_width;
-    atlas->cell_height = cell_height;
-    atlas->columns = atlas_columns;
-    atlas->glyph_count = glyph_count;
-
-    free(mask);
-    free(soft);
-    free(blurred);
-    return 1;
+    atlas->width = width; atlas->height = height; atlas->cell_width = cell_width; atlas->cell_height = cell_height;
+    atlas->columns = atlas_columns; atlas->glyph_count = glyph_count;
+    free(mask); free(soft); free(blurred); return 1;
 }
 
 void matrixcode_free_atlas(matrixcode_atlas *atlas)
 {
-    if (atlas == NULL) {
-        return;
-    }
-    free(atlas->core_rgba);
-    free(atlas->glow_rgba);
-    memset(atlas, 0, sizeof(*atlas));
+    if (!atlas) return;
+    free(atlas->core_rgba); free(atlas->glow_rgba); memset(atlas, 0, sizeof(*atlas));
 }
 
 int matrixcode_glyphs_self_test(void)
 {
-    size_t i;
-    size_t lit_total = 0U;
-    matrixcode_atlas atlas;
-
-    if (matrixcode_base_glyph_count() < 50U) {
-        fprintf(stderr, "glyph self-test: too few base glyphs\n");
-        return 0;
-    }
+    size_t i, lit_total = 0U; matrixcode_atlas atlas;
+    if (matrixcode_base_glyph_count() != 57U) { fprintf(stderr, "glyph self-test: expected 57 base glyphs\n"); return 0; }
     for (i = 0U; i < matrixcode_base_glyph_count(); i++) {
-        size_t row;
-        size_t lit = 0U;
+        size_t row, lit = 0U;
         for (row = 0U; row < MATRIXCODE_GLYPH_HEIGHT; row++) {
-            uint8_t bits = glyphs[i].rows[row];
-            unsigned int bit;
-            for (bit = 0U; bit < 8U; bit++) {
-                lit += (size_t) (((unsigned int) bits >> bit) & 1U);
-            }
+            uint8_t bits = glyphs[i].rows[row]; unsigned int bit;
+            for (bit = 0U; bit < 8U; bit++) lit += (size_t)(((unsigned int)bits >> bit) & 1U);
         }
-        if (lit < 2U || lit > 70U) {
-            fprintf(stderr, "glyph self-test: suspicious glyph %s (%zu pixels)\n",
-                    glyphs[i].name, lit);
-            return 0;
-        }
+        if (lit < 2U || lit > 70U) { fprintf(stderr, "glyph self-test: suspicious glyph %s (%zu pixels)\n", glyphs[i].name, lit); return 0; }
         lit_total += lit;
     }
-    if (lit_total < 700U) {
-        fprintf(stderr, "glyph self-test: atlas is unexpectedly sparse\n");
-        return 0;
-    }
-    if (!matrixcode_build_atlas(&atlas)) {
-        fprintf(stderr, "glyph self-test: could not build atlas\n");
-        return 0;
-    }
-    if (atlas.width == 0U || atlas.height == 0U ||
-        atlas.glyph_count != matrixcode_total_glyph_count()) {
-        fprintf(stderr, "glyph self-test: invalid atlas metadata\n");
-        matrixcode_free_atlas(&atlas);
-        return 0;
-    }
-    matrixcode_free_atlas(&atlas);
-    return 1;
+    if (lit_total < 700U) return 0;
+    if (!matrixcode_build_atlas(&atlas)) return 0;
+    if (atlas.width == 0U || atlas.height == 0U || atlas.glyph_count != matrixcode_total_glyph_count()) { matrixcode_free_atlas(&atlas); return 0; }
+    matrixcode_free_atlas(&atlas); return 1;
 }

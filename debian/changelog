@@ -1,8 +1,12 @@
-xscreensaver-matrixcode (0.1.0-1~noble1) noble; urgency=medium
+xscreensaver-matrixcode (0.2.0-1~noble1) noble; urgency=medium
 
-  * Initial standalone release.
-  * Add a clean-room, fixed-grid digital code rain renderer using X11 and GLX.
-  * Add original katakana-inspired, mirrored, numeric, and symbol glyph atlas.
-  * Add XScreenSaver configuration, desktop entry, manual page, tests, and CI.
+  * Rework the default renderer around the first-film operator CRT look.
+  * Use a resolution-independent 108-column logical grid and tall/narrow glyphs.
+  * Add operator1999, opening1999 and clean visual profiles.
+  * Replace smooth neon trails with flatter illuminated rain and pale cursors.
+  * Add 4:3 framing, 640x480 virtual raster, tube curvature, scanlines,
+    phosphor grille, vignette, overscan and phosphor persistence.
+  * Preserve the clean-room glyph atlas and fixed-function OpenGL/GLX support.
+  * Expand deterministic validation for film geometry and CRT presentation.
 
- -- Reaper <JohnGrimmReaper@disroot.org>  Wed, 10 Jun 2026 02:30:00 +0000
+ -- Reaper <JohnGrimmReaper@disroot.org>  Mon, 10 Aug 2026 21:30:00 +0000

@@ -1,16 +1,9 @@
 xscreensaver-matrixcode for Debian and Ubuntu
 =============================================
 
-This package is intentionally separate from the upstream xscreensaver source
-package. It installs one additional hack and the metadata needed for
-xscreensaver-settings:
+This package installs one standalone XScreenSaver hack and its settings
+metadata.  The default operator1999 profile intentionally frames the code as a
+4:3 CRT image; black side areas on a widescreen display are therefore expected.
 
-  /usr/libexec/xscreensaver/matrixcode
-  /usr/share/xscreensaver/config/matrixcode.xml
-  /usr/share/applications/screensavers/matrixcode.desktop
-  /usr/share/man/man6/matrixcode.6x
-
-Restart xscreensaver-settings after installation. If MatrixCode does not appear
-immediately, close all settings windows and launch xscreensaver-settings again.
-
-The renderer requires X11 and GLX. It is not a Wayland-native screen saver.
+Restart xscreensaver-settings after installation.  The renderer requires X11
+and GLX and is not a Wayland-native screen saver.

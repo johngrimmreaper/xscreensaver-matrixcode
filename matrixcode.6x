@@ -1,99 +1,108 @@
-.TH MATRIXCODE 6x "June 2026" "matrixcode 0.1.0" "XScreenSaver manual"
+.TH MATRIXCODE 6x "10 August 2026" "MatrixCode 0.2" "XScreenSaver manual"
 .SH NAME
-matrixcode \- lightweight OpenGL digital code rain
+matrixcode \- original-era Matrix-style code rain with optional CRT treatment
 .SH SYNOPSIS
 .B matrixcode
-.RI [ options ]
+[options]
 .SH DESCRIPTION
 .B matrixcode
-renders a fixed grid of custom, half-width glyphs whose brightness is animated
-by independently falling illumination pulses.  The renderer uses X11 and
-legacy OpenGL/GLX so it can run as an XScreenSaver hack without requiring a
-programmable shader pipeline.
-.PP
-The glyphs are original clean-room artwork inspired by katakana, mirrored
-forms, digits, and punctuation.  No film assets or third-party fonts are
-included.
-.SH WINDOW OPTIONS
+renders a fixed grid of original clean-room glyphs whose illumination moves
+downward in independently timed waves.  The default operator1999 profile uses a
+4:3 aperture and restrained CRT emulation to resemble photographed late-1990s
+workstation displays rather than a generic full-screen neon text effect.
+.SH PROFILES
 .TP
-.BR \-root
-Draw on the root window.
+.B -profile operator1999
+Default.  108 columns, 4:3 framing, flat luminous rain bodies, bright cursors,
+and CRT treatment.
 .TP
-.BR \-window
-Create a test window.  This is the default outside XScreenSaver.
+.B -profile opening1999
+Cleaner cinematic presentation without CRT treatment.
 .TP
-.BI \-window-id " ID"
-Draw in an existing X window.  The XSCREENSAVER_WINDOW environment variable is
-also recognized.
+.B -profile clean
+Neutral modern rendering for comparison and low-cost operation.
+.SH GEOMETRY AND RAIN
 .TP
-.BI \-geometry " WIDTHxHEIGHT"
-Set the test-window size.  The default is 960x540.
-.SH VISUAL OPTIONS
+.BI -columns " N"
+Logical columns, 40 to 240.  Default 108.
 .TP
-.BI \-fps " N"
-Cap rendering at 5 to 120 frames per second.  Default: 30.
+.BI -aspect " auto|4:3|16:9|2.39:1"
+Frame the code independently of the physical desktop aspect.
 .TP
-.BI \-delay " MICROSECONDS"
-Set the frame delay directly.  This overrides \-fps.
+.BI -density " N"
+Illuminated fraction of the rain cycle, 10 to 90.
 .TP
-.BI \-cell-size " N"
-Set glyph height from 10 to 40 pixels.  Default: 18.
+.BI -speed " N"
+Fall-speed percentage, 25 to 250.
 .TP
-.BI \-density " N"
-Set the percentage of columns carrying rain, from 10 to 90.  Default: 42.
+.BI -trail " N"
+Rain period / luminous-run control, 6 to 40.
 .TP
-.BI \-speed " N"
-Set fall speed as a percentage, from 25 to 250.  Default: 100.
+.BI -cycle " N"
+Independent glyph-cycling rate, 0 to 300.
 .TP
-.BI \-trail " N"
-Set nominal trail length from 6 to 40 cells.  Default: 18.
+.BI -glow " N"
+Optical glow strength, 0 to 100.
 .TP
-.BI \-cycle " N"
-Set the rate of glyph mutation from 0 to 300 percent.  Default: 100.
+.BI -contrast " N"
+Ordinary-code brightness control, 20 to 100.
+.SH CRT OPTIONS
 .TP
-.BI \-glow " N"
-Set glow strength from 0 to 100.  Default: 68.
+.B -crt, -no-crt
+Enable or disable CRT treatment.
 .TP
-.BI \-contrast " N"
-Set trail contrast from 20 to 100.  Default: 78.
+.BI -curvature " N"
+Tube curvature, 0 to 100.
 .TP
-.BI \-seed " N"
-Use a deterministic random seed.
+.BI -scanlines " N"
+Scanline strength, 0 to 100.
 .TP
-.BR \-no-vsync
-Do not request a GLX swap interval.
-.SH TESTING OPTIONS
+.BI -phosphor-mask " N"
+Vertical phosphor-grille strength, 0 to 100.
 .TP
-.BI \-frames " N"
-Exit after rendering N frames.
+.BI -vignette " N"
+Edge darkening, 0 to 100.
 .TP
-.BI \-screenshot " FILE.ppm"
-Save the last rendered frame as a binary PPM image.
+.BI -persistence " N"
+Phosphor after-image strength, 0 to 100.
 .TP
-.BR \-self-test
-Run deterministic non-graphical tests and exit.
+.BI -overscan " N"
+Inset the simulated raster by 0 to 10 percent.
+.SH XSCREENSAVER OPTIONS
 .TP
-.BR \-verbose
-Print GL implementation and grid diagnostics.
+.B -root
+Draw into the root window.
 .TP
-.BR \-version
-Print the version and exit.
+.B -window
+Create a preview window.
 .TP
-.BR \-help
-Print command-line help and exit.
-.SH FILES
+.BI -window-id " ID"
+Draw into an existing X window.  XSCREENSAVER_WINDOW is also honored.
 .TP
-.I /usr/libexec/xscreensaver/matrixcode
-The screen saver executable.
+.BI -geometry " WxH"
+Preview-window geometry.
+.SH TIMING AND TESTING
 .TP
-.I /usr/share/xscreensaver/config/matrixcode.xml
-Preferences metadata used by xscreensaver-settings.
-.SH PERFORMANCE
-The default renderer uses one compact texture atlas, immediate-mode textured
-quads, no per-frame allocation, no shaders, no framebuffers, and at most two
-illumination pulses per active column.  Lower \-fps, increase \-cell-size, or
-reduce \-density on very slow machines.
-.SH AUTHORS
-MatrixCode was written as an independent clean-room XScreenSaver hack.
-.SH LICENSE
-MIT/X11.
+.BI -fps " N"
+Frame cap, 5 to 120.
+.TP
+.BI -delay " usec"
+Frame delay in microseconds.
+.TP
+.BI -seed " N"
+Use deterministic pseudo-random state.
+.TP
+.BI -frames " N"
+Exit after exactly N rendered frames.
+.TP
+.BI -screenshot " FILE.ppm"
+Capture the final frame as binary PPM.
+.TP
+.B -self-test
+Run non-graphical internal tests.
+.TP
+.B -verbose
+Print GL and grid diagnostics.
+.SH COPYRIGHT
+MIT/X11 licensed.  This unofficial project is unaffiliated with the owners of
+The Matrix and contains no extracted film assets or official font data.

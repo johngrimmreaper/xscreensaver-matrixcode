@@ -1,41 +1,37 @@
 # Validation
 
+Validation date: 2026-08-10 UTC.
+
 ## Automated checks
 
-`make check` runs three layers:
+`make check` runs:
 
 1. `matrixcode -self-test`
-   - verifies glyph-table dimensions and names;
-   - builds and validates both texture atlases;
-   - checks deterministic pseudo-random simulation behavior;
-   - exercises resize/reinitialization invariants.
+   - validates the 57-base / 114-addressable clean-room glyph atlas;
+   - validates deterministic simulation initialization;
+   - checks operator-profile 4:3 geometry and 108-column grid;
+   - checks cursor population and glyph index bounds.
 2. `tests/test-cli.sh`
-   - checks help and version output;
-   - verifies accepted parameter boundaries;
-   - confirms malformed or out-of-range options fail.
+   - verifies help/version/profile parsing;
+   - verifies useful option boundaries;
+   - checks malformed values, including rejection of negative unsigned seeds.
 3. `tests/test-xvfb.sh`
-   - starts a software-rendered GLX X server;
-   - runs a fixed-seed 800x600 scene for 45 frames;
-   - captures the final framebuffer as PPM;
-   - validates dimensions, non-black coverage, green dominance, and a minimum
-     population of bright leading pixels.
+   - renders a deterministic operator CRT frame through Xvfb + software GL;
+   - checks dimensions, visible coverage, green dominance and bright cursor
+     population;
+   - confirms the default 4:3 presentation leaves dark side areas in a 16:9
+     capture.
 
-## Additional package checks
+## Local container validation
 
-The Debian autopkgtest repeats the internal test and software-GLX screenshot
-check against the installed `/usr/libexec/xscreensaver/matrixcode` executable.
-The GitHub Actions workflow builds on Ubuntu 24.04, runs the source test suite,
-invokes `dpkg-buildpackage`, and runs Lintian.
+The 0.2 rework was compiled with GCC using the repository's strict warning set
+and completed warning-clean.  Internal self-tests passed.  A deterministic
+1920x1080 frame was rendered through Mesa llvmpipe using:
 
-## Local validation record
+```sh
+LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a \
+  ./matrixcode -window -geometry 1920x1080 -frames 90 \
+  -seed 19990331 -no-vsync -screenshot docs/film1999.ppm -verbose
+```
 
-The initial 0.1.0 source was compiled with both GCC and Clang under warning
-flags covering conversion, shadow, format, prototypes, cast qualification, and
-undefined macros. AddressSanitizer, UndefinedBehaviorSanitizer, Clang static
-analysis, deterministic CLI tests, root-window tests, embedded-window tests,
-hardened staging, and a Debian source-package round trip all completed without
-findings or failures. The generated 1280x720 reference image is stored as
-`docs/preview.png`.
-
-The exact local environment, results, performance sample, and one acknowledged
-container limitation are recorded in [BUILD-REPORT.md](BUILD-REPORT.md).
+The resulting reference image is `docs/film1999.png`.

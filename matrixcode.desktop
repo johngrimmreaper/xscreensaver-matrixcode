@@ -1,6 +1,6 @@
 [Desktop Entry]
-Name=MatrixCode
-Comment=Faithful, lightweight digital code rain for XScreenSaver
+Name=MatrixCode 1999 CRT
+Comment=Original-era digital code rain for XScreenSaver
 Exec=/usr/libexec/xscreensaver/matrixcode -root
 TryExec=/usr/libexec/xscreensaver/matrixcode
 Terminal=false

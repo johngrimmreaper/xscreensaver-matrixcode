@@ -12,5 +12,4 @@ debian/.debhelper/
 debian/files
 debian/xscreensaver-screensaver-matrixcode/
 tests/*.ppm
-tests/*.png
-docs/preview.ppm
+docs/*.ppm

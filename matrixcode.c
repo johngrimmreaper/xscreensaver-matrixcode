@@ -23,14 +23,27 @@
 #include <time.h>
 #include <unistd.h>
 
-#define MATRIXCODE_VERSION "0.1.0"
-#define MAX_DROPS_PER_COLUMN 2
+#define MATRIXCODE_VERSION "0.2.0-film-rework"
 #define DEFAULT_WINDOW_WIDTH 960
-#define DEFAULT_WINDOW_HEIGHT 540
+#define DEFAULT_WINDOW_HEIGHT 720
+#define PI_D 3.14159265358979323846
+#define SQRT2_F 1.41421356237F
+#define SQRT5_F 2.23606797750F
 
-typedef struct rng_state {
-    uint64_t state;
-} rng_state;
+typedef enum profile_kind {
+    PROFILE_OPERATOR_1999 = 0,
+    PROFILE_OPENING_1999,
+    PROFILE_CLEAN
+} profile_kind;
+
+typedef enum aspect_kind {
+    ASPECT_AUTO = 0,
+    ASPECT_4_3,
+    ASPECT_16_9,
+    ASPECT_CINEMA
+} aspect_kind;
+
+typedef struct rng_state { uint64_t state; } rng_state;
 
 typedef struct options {
     int root_mode;
@@ -41,17 +54,26 @@ typedef struct options {
     int height;
     int fps;
     unsigned int delay_usec;
-    int cell_size;
+    unsigned int columns;
     int density;
     int speed;
     int trail;
     int cycle;
     int glow;
     int contrast;
+    profile_kind profile;
+    aspect_kind aspect;
+    int crt;
+    int curvature;
+    int scanlines;
+    int phosphor_mask;
+    int vignette;
+    int persistence;
+    int overscan;
+    int no_vsync;
     uint64_t seed;
     int seed_set;
     unsigned long frames;
-    int no_vsync;
     int verbose;
     int self_test;
     const char *screenshot_path;
@@ -60,30 +82,31 @@ typedef struct options {
 typedef struct cell {
     uint16_t glyph;
     uint8_t occupied;
-    uint8_t phase;
+    float age;
+    float cycle_rate;
 } cell;
 
 typedef struct rain_column {
-    float speed;
-    float period;
-    float offset[MAX_DROPS_PER_COLUMN];
-    float length[MAX_DROPS_PER_COLUMN];
-    int last_head[MAX_DROPS_PER_COLUMN];
-    int drop_count;
-    int active;
-    float brightness;
+    float time_offset;
+    float speed_scale;
+    float brightness_scale;
 } rain_column;
+
+typedef struct content_rect {
+    float x;
+    float y;
+    float width;
+    float height;
+} content_rect;
 
 typedef struct simulation {
     unsigned int columns;
     unsigned int rows;
     float cell_width;
     float cell_height;
-    float origin_x;
-    float origin_y;
+    content_rect content;
     cell *cells;
     rain_column *column;
-    double cycle_accumulator;
     rng_state rng;
 } simulation;
 
@@ -116,18 +139,16 @@ typedef void (*swap_interval_ext_proc)(Display *, GLXDrawable, int);
 
 static volatile sig_atomic_t stop_requested = 0;
 
-static void signal_handler(int signal_number)
+static void signal_handler(int sig)
 {
-    (void) signal_number;
+    (void)sig;
     stop_requested = 1;
 }
 
 static uint64_t rng_next_u64(rng_state *rng)
 {
     uint64_t x = rng->state;
-    if (x == 0U) {
-        x = UINT64_C(0x9e3779b97f4a7c15);
-    }
+    if (x == 0U) x = UINT64_C(0x9e3779b97f4a7c15);
     x ^= x >> 12U;
     x ^= x << 25U;
     x ^= x >> 27U;
@@ -137,99 +158,40 @@ static uint64_t rng_next_u64(rng_state *rng)
 
 static unsigned int rng_bounded(rng_state *rng, unsigned int upper)
 {
-    if (upper == 0U) {
-        return 0U;
-    }
-    return (unsigned int) (rng_next_u64(rng) % upper);
+    if (upper == 0U) return 0U;
+    return (unsigned int)(rng_next_u64(rng) % upper);
 }
 
 static float rng_float(rng_state *rng)
 {
     uint64_t value = rng_next_u64(rng) >> 40U;
-    return (float) value / 16777216.0F;
-}
-
-static uint32_t hash_u32(uint32_t value)
-{
-    value ^= value >> 16U;
-    value *= UINT32_C(0x7feb352d);
-    value ^= value >> 15U;
-    value *= UINT32_C(0x846ca68b);
-    value ^= value >> 16U;
-    return value;
+    return (float)value / 16777216.0F;
 }
 
 static double monotonic_seconds(void)
 {
     struct timespec ts;
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
-        return 0.0;
-    }
-    return (double) ts.tv_sec + (double) ts.tv_nsec / 1000000000.0;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0.0;
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1000000000.0;
 }
 
 static void sleep_seconds(double seconds)
 {
-    struct timespec request;
-    struct timespec remainder;
-    if (seconds <= 0.0) {
-        return;
-    }
-    request.tv_sec = (time_t) seconds;
-    request.tv_nsec = (long) ((seconds - (double) request.tv_sec) * 1000000000.0);
-    while (nanosleep(&request, &remainder) != 0 && errno == EINTR) {
-        request = remainder;
-    }
+    struct timespec req, rem;
+    if (seconds <= 0.0) return;
+    req.tv_sec = (time_t)seconds;
+    req.tv_nsec = (long)((seconds - (double)req.tv_sec) * 1000000000.0);
+    while (nanosleep(&req, &rem) != 0 && errno == EINTR) req = rem;
 }
 
-static void print_usage(FILE *stream, const char *program)
-{
-    fprintf(stream,
-            "Usage: %s [options]\n"
-            "\n"
-            "XScreenSaver window options:\n"
-            "  -root, --root               draw on the root window\n"
-            "  -window, --window           create a test window (default)\n"
-            "  -window-id ID               draw into an existing X window\n"
-            "  -geometry WxH               test-window size (default 960x540)\n"
-            "\n"
-            "Visual options:\n"
-            "  -fps N                      frame cap, 5..120 (default 30)\n"
-            "  -delay USEC                 frame delay; overrides -fps\n"
-            "  -cell-size N                glyph height, 10..40 (default 18)\n"
-            "  -density N                  active-column percentage, 10..90\n"
-            "  -speed N                    fall-speed percentage, 25..250\n"
-            "  -trail N                    nominal trail length, 6..40 cells\n"
-            "  -cycle N                    glyph-change percentage, 0..300\n"
-            "  -glow N                     glow strength, 0..100\n"
-            "  -contrast N                 trail contrast, 20..100\n"
-            "  -seed N                     deterministic random seed\n"
-            "  -no-vsync                   disable GLX swap-interval request\n"
-            "\n"
-            "Testing options:\n"
-            "  -frames N                   exit after N rendered frames\n"
-            "  -screenshot FILE.ppm        save the last frame as binary PPM\n"
-            "  -self-test                  run non-graphical internal tests\n"
-            "  -verbose                    print GL and grid diagnostics\n"
-            "  -version                    print version\n"
-            "  -help                       show this help\n",
-            program);
-}
-
-static int parse_long(const char *text, long minimum, long maximum, long *result)
+static int parse_long(const char *text, long minv, long maxv, long *result)
 {
     char *end = NULL;
-
-    if (text == NULL || result == NULL) {
-        return 0;
-    }
     long value;
+    if (!text || !result) return 0;
     errno = 0;
     value = strtol(text, &end, 0);
-    if (errno != 0 || end == text || *end != '\0' ||
-        value < minimum || value > maximum) {
-        return 0;
-    }
+    if (errno != 0 || end == text || *end != '\0' || value < minv || value > maxv) return 0;
     *result = value;
     return 1;
 }
@@ -237,64 +199,58 @@ static int parse_long(const char *text, long minimum, long maximum, long *result
 static int parse_u64(const char *text, uint64_t *result)
 {
     char *end = NULL;
-
-    if (text == NULL || result == NULL) {
-        return 0;
-    }
     unsigned long long value;
+    if (!text || !result || text[0] == '-') return 0;
     errno = 0;
     value = strtoull(text, &end, 0);
-    if (errno != 0 || end == text || *end != '\0') {
-        return 0;
-    }
-    *result = (uint64_t) value;
+    if (errno != 0 || end == text || *end != '\0') return 0;
+    *result = (uint64_t)value;
     return 1;
 }
 
 static int parse_window_id(const char *text, Window *result)
 {
     uint64_t value;
-    if (!parse_u64(text, &value)) {
-        return 0;
-    }
-    *result = (Window) value;
+    if (!parse_u64(text, &value)) return 0;
+    *result = (Window)value;
     return 1;
 }
 
 static int parse_geometry(const char *text, int *width, int *height)
 {
-    char *separator;
+    const char *sep;
     char left[32];
-    long parsed_width;
-    long parsed_height;
-    size_t left_length;
-
-    if (text == NULL || width == NULL || height == NULL) {
-        return 0;
-    }
-    separator = strchr(text, 'x');
-    if (separator == NULL) {
-        separator = strchr(text, 'X');
-    }
-    if (separator == NULL) {
-        return 0;
-    }
-    left_length = (size_t) (separator - text);
-    if (left_length == 0U || left_length >= sizeof(left)) {
-        return 0;
-    }
-    memcpy(left, text, left_length);
-    left[left_length] = '\0';
-    if (!parse_long(left, 160L, 8192L, &parsed_width) ||
-        !parse_long(separator + 1, 120L, 8192L, &parsed_height)) {
-        return 0;
-    }
-    *width = (int) parsed_width;
-    *height = (int) parsed_height;
+    size_t len;
+    long w, h;
+    if (!text || !width || !height) return 0;
+    sep = strchr(text, 'x');
+    if (!sep) sep = strchr(text, 'X');
+    if (!sep) return 0;
+    len = (size_t)(sep - text);
+    if (len == 0U || len >= sizeof(left)) return 0;
+    memcpy(left, text, len);
+    left[len] = '\0';
+    if (!parse_long(left, 160L, 8192L, &w) || !parse_long(sep + 1, 120L, 8192L, &h)) return 0;
+    *width = (int)w;
+    *height = (int)h;
     return 1;
 }
 
-static void options_defaults(options *opts)
+static profile_kind profile_from_name(const char *name)
+{
+    if (name && (strcmp(name, "opening") == 0 || strcmp(name, "opening1999") == 0)) return PROFILE_OPENING_1999;
+    if (name && strcmp(name, "clean") == 0) return PROFILE_CLEAN;
+    return PROFILE_OPERATOR_1999;
+}
+
+static const char *profile_name(profile_kind profile)
+{
+    if (profile == PROFILE_OPENING_1999) return "opening1999";
+    if (profile == PROFILE_CLEAN) return "clean";
+    return "operator1999";
+}
+
+static void options_profile_defaults(options *opts, profile_kind profile)
 {
     memset(opts, 0, sizeof(*opts));
     opts->window_mode = 1;
@@ -302,418 +258,334 @@ static void options_defaults(options *opts)
     opts->height = DEFAULT_WINDOW_HEIGHT;
     opts->fps = 30;
     opts->delay_usec = 33333U;
-    opts->cell_size = 18;
-    opts->density = 42;
+    opts->profile = profile;
+    opts->columns = 108U;
+    opts->density = 55;
     opts->speed = 100;
     opts->trail = 18;
     opts->cycle = 100;
-    opts->glow = 68;
-    opts->contrast = 78;
+    opts->glow = 76;
+    opts->contrast = 82;
+    opts->aspect = ASPECT_4_3;
+    opts->crt = 1;
+    opts->curvature = 11;
+    opts->scanlines = 32;
+    opts->phosphor_mask = 14;
+    opts->vignette = 30;
+    opts->persistence = 14;
+    opts->overscan = 2;
+    if (profile == PROFILE_OPENING_1999) {
+        opts->aspect = ASPECT_CINEMA;
+        opts->crt = 0;
+        opts->columns = 108U;
+        opts->density = 52;
+        opts->glow = 72;
+        opts->curvature = 0;
+        opts->scanlines = 0;
+        opts->phosphor_mask = 0;
+        opts->vignette = 8;
+        opts->persistence = 6;
+        opts->overscan = 0;
+    } else if (profile == PROFILE_CLEAN) {
+        opts->aspect = ASPECT_AUTO;
+        opts->crt = 0;
+        opts->columns = 92U;
+        opts->density = 48;
+        opts->speed = 90;
+        opts->trail = 15;
+        opts->glow = 58;
+        opts->curvature = 0;
+        opts->scanlines = 0;
+        opts->phosphor_mask = 0;
+        opts->vignette = 0;
+        opts->persistence = 0;
+        opts->overscan = 0;
+    }
 }
 
-static int option_takes_value(const char *argument)
+static aspect_kind parse_aspect(const char *text)
 {
-    return strcmp(argument, "-window-id") == 0 ||
-           strcmp(argument, "--window-id") == 0 ||
-           strcmp(argument, "-geometry") == 0 ||
-           strcmp(argument, "--geometry") == 0 ||
-           strcmp(argument, "-fps") == 0 ||
-           strcmp(argument, "--fps") == 0 ||
-           strcmp(argument, "-maxfps") == 0 ||
-           strcmp(argument, "--maxfps") == 0 ||
-           strcmp(argument, "-delay") == 0 ||
-           strcmp(argument, "--delay") == 0 ||
-           strcmp(argument, "-cell-size") == 0 ||
-           strcmp(argument, "--cell-size") == 0 ||
-           strcmp(argument, "-density") == 0 ||
-           strcmp(argument, "--density") == 0 ||
-           strcmp(argument, "-speed") == 0 ||
-           strcmp(argument, "--speed") == 0 ||
-           strcmp(argument, "-trail") == 0 ||
-           strcmp(argument, "--trail") == 0 ||
-           strcmp(argument, "-cycle") == 0 ||
-           strcmp(argument, "--cycle") == 0 ||
-           strcmp(argument, "-glow") == 0 ||
-           strcmp(argument, "--glow") == 0 ||
-           strcmp(argument, "-contrast") == 0 ||
-           strcmp(argument, "--contrast") == 0 ||
-           strcmp(argument, "-seed") == 0 ||
-           strcmp(argument, "--seed") == 0 ||
-           strcmp(argument, "-frames") == 0 ||
-           strcmp(argument, "--frames") == 0 ||
-           strcmp(argument, "-screenshot") == 0 ||
-           strcmp(argument, "--screenshot") == 0;
+    if (strcmp(text, "4:3") == 0 || strcmp(text, "4/3") == 0) return ASPECT_4_3;
+    if (strcmp(text, "16:9") == 0 || strcmp(text, "16/9") == 0) return ASPECT_16_9;
+    if (strcmp(text, "2.39:1") == 0 || strcmp(text, "cinema") == 0) return ASPECT_CINEMA;
+    return ASPECT_AUTO;
+}
+
+static int option_takes_value(const char *arg)
+{
+    static const char *const names[] = {
+        "-profile", "--profile", "-window-id", "--window-id", "-geometry", "--geometry",
+        "-fps", "--fps", "-maxfps", "--maxfps", "-delay", "--delay", "-columns", "--columns",
+        "-cell-size", "--cell-size", "-density", "--density", "-speed", "--speed", "-trail", "--trail",
+        "-cycle", "--cycle", "-glow", "--glow", "-contrast", "--contrast", "-aspect", "--aspect",
+        "-curvature", "--curvature", "-scanlines", "--scanlines", "-phosphor-mask", "--phosphor-mask",
+        "-vignette", "--vignette", "-persistence", "--persistence", "-overscan", "--overscan",
+        "-seed", "--seed", "-frames", "--frames", "-screenshot", "--screenshot"
+    };
+    size_t i;
+    for (i = 0U; i < sizeof(names) / sizeof(names[0]); i++) if (strcmp(arg, names[i]) == 0) return 1;
+    return 0;
+}
+
+static void print_usage(FILE *stream, const char *program)
+{
+    fprintf(stream,
+        "Usage: %s [options]\n\n"
+        "Profiles:\n"
+        "  -profile operator1999|opening1999|clean  visual preset (default operator1999)\n"
+        "\nXScreenSaver/window options:\n"
+        "  -root | -window | -window-id ID\n"
+        "  -geometry WxH                 preview-window size\n"
+        "\nFilm geometry and rain:\n"
+        "  -columns N                    logical columns, 40..240 (operator default 108)\n"
+        "  -aspect auto|4:3|16:9|2.39:1  content framing (operator default 4:3)\n"
+        "  -density N                    lit-cell coverage, 10..90 (default 55)\n"
+        "  -speed N                      fall speed percentage, 25..250\n"
+        "  -trail N                      rain period/length, 6..40 (default 18)\n"
+        "  -cycle N                      glyph cycling, 0..300\n"
+        "  -glow N                       optical glow, 0..100\n"
+        "  -contrast N                   glyph/trail contrast, 20..100\n"
+        "\nCRT emulation:\n"
+        "  -crt | -no-crt                enable/disable CRT treatment\n"
+        "  -curvature N                  barrel curvature, 0..100\n"
+        "  -scanlines N                  scanline strength, 0..100\n"
+        "  -phosphor-mask N              vertical grille strength, 0..100\n"
+        "  -vignette N                   edge darkening, 0..100\n"
+        "  -persistence N                phosphor after-image, 0..100\n"
+        "  -overscan N                   image inset, 0..10 percent\n"
+        "\nTiming/testing:\n"
+        "  -fps N | -delay USEC          frame cap\n"
+        "  -seed N -frames N             deterministic render\n"
+        "  -screenshot FILE.ppm          capture last deterministic frame\n"
+        "  -no-vsync -verbose -self-test -version -help\n",
+        program);
 }
 
 static int parse_options(int argc, char **argv, options *opts)
 {
     int i;
-    options_defaults(opts);
-
+    profile_kind profile = PROFILE_OPERATOR_1999;
+    for (i = 1; i + 1 < argc; i++) {
+        if (strcmp(argv[i], "-profile") == 0 || strcmp(argv[i], "--profile") == 0) profile = profile_from_name(argv[i + 1]);
+    }
+    options_profile_defaults(opts, profile);
     for (i = 1; i < argc; i++) {
-        const char *argument = argv[i];
+        const char *arg = argv[i];
         const char *value = NULL;
         long number;
-
-        if (option_takes_value(argument)) {
-            if (i + 1 >= argc) {
-                fprintf(stderr, "%s requires a value\n", argument);
-                return 0;
-            }
+        if (option_takes_value(arg)) {
+            if (i + 1 >= argc) { fprintf(stderr, "%s requires a value\n", arg); return 0; }
             value = argv[++i];
         }
-
-        if (strcmp(argument, "-root") == 0 || strcmp(argument, "--root") == 0) {
-            opts->root_mode = 1;
-            opts->window_mode = 0;
-            opts->have_window_id = 0;
-        } else if (strcmp(argument, "-window") == 0 ||
-                   strcmp(argument, "--window") == 0) {
-            opts->root_mode = 0;
-            opts->window_mode = 1;
-            opts->have_window_id = 0;
-        } else if (strcmp(argument, "-window-id") == 0 ||
-                   strcmp(argument, "--window-id") == 0) {
-            if (!parse_window_id(value, &opts->window_id)) {
-                fprintf(stderr, "invalid window ID: %s\n", value);
-                return 0;
+        if (strcmp(arg, "-profile") == 0 || strcmp(arg, "--profile") == 0) {
+            if (strcmp(value, "operator") != 0 && strcmp(value, "operator1999") != 0 &&
+                strcmp(value, "opening") != 0 && strcmp(value, "opening1999") != 0 && strcmp(value, "clean") != 0) {
+                fprintf(stderr, "invalid profile: %s\n", value); return 0;
             }
-            opts->root_mode = 0;
-            opts->window_mode = 0;
-            opts->have_window_id = 1;
-        } else if (strcmp(argument, "-geometry") == 0 ||
-                   strcmp(argument, "--geometry") == 0) {
-            if (!parse_geometry(value, &opts->width, &opts->height)) {
-                fprintf(stderr, "invalid geometry: %s\n", value);
-                return 0;
-            }
-        } else if (strcmp(argument, "-fps") == 0 ||
-                   strcmp(argument, "--fps") == 0 ||
-                   strcmp(argument, "-maxfps") == 0 ||
-                   strcmp(argument, "--maxfps") == 0) {
-            if (!parse_long(value, 5L, 120L, &number)) {
-                fprintf(stderr, "invalid FPS: %s\n", value);
-                return 0;
-            }
-            opts->fps = (int) number;
-            opts->delay_usec = (unsigned int) (1000000L / number);
-        } else if (strcmp(argument, "-delay") == 0 ||
-                   strcmp(argument, "--delay") == 0) {
-            if (!parse_long(value, 1000L, 200000L, &number)) {
-                fprintf(stderr, "invalid delay: %s\n", value);
-                return 0;
-            }
-            opts->delay_usec = (unsigned int) number;
-            opts->fps = (int) (1000000L / number);
-        } else if (strcmp(argument, "-cell-size") == 0 ||
-                   strcmp(argument, "--cell-size") == 0) {
-            if (!parse_long(value, 10L, 40L, &number)) {
-                fprintf(stderr, "invalid cell size: %s\n", value);
-                return 0;
-            }
-            opts->cell_size = (int) number;
-        } else if (strcmp(argument, "-density") == 0 ||
-                   strcmp(argument, "--density") == 0) {
-            if (!parse_long(value, 10L, 90L, &number)) {
-                fprintf(stderr, "invalid density: %s\n", value);
-                return 0;
-            }
-            opts->density = (int) number;
-        } else if (strcmp(argument, "-speed") == 0 ||
-                   strcmp(argument, "--speed") == 0) {
-            if (!parse_long(value, 25L, 250L, &number)) {
-                fprintf(stderr, "invalid speed: %s\n", value);
-                return 0;
-            }
-            opts->speed = (int) number;
-        } else if (strcmp(argument, "-trail") == 0 ||
-                   strcmp(argument, "--trail") == 0) {
-            if (!parse_long(value, 6L, 40L, &number)) {
-                fprintf(stderr, "invalid trail length: %s\n", value);
-                return 0;
-            }
-            opts->trail = (int) number;
-        } else if (strcmp(argument, "-cycle") == 0 ||
-                   strcmp(argument, "--cycle") == 0) {
-            if (!parse_long(value, 0L, 300L, &number)) {
-                fprintf(stderr, "invalid cycle rate: %s\n", value);
-                return 0;
-            }
-            opts->cycle = (int) number;
-        } else if (strcmp(argument, "-glow") == 0 ||
-                   strcmp(argument, "--glow") == 0) {
-            if (!parse_long(value, 0L, 100L, &number)) {
-                fprintf(stderr, "invalid glow strength: %s\n", value);
-                return 0;
-            }
-            opts->glow = (int) number;
-        } else if (strcmp(argument, "-contrast") == 0 ||
-                   strcmp(argument, "--contrast") == 0) {
-            if (!parse_long(value, 20L, 100L, &number)) {
-                fprintf(stderr, "invalid contrast: %s\n", value);
-                return 0;
-            }
-            opts->contrast = (int) number;
-        } else if (strcmp(argument, "-seed") == 0 ||
-                   strcmp(argument, "--seed") == 0) {
-            if (!parse_u64(value, &opts->seed)) {
-                fprintf(stderr, "invalid seed: %s\n", value);
-                return 0;
-            }
-            opts->seed_set = 1;
-        } else if (strcmp(argument, "-frames") == 0 ||
-                   strcmp(argument, "--frames") == 0) {
-            if (!parse_long(value, 1L, 10000000L, &number)) {
-                fprintf(stderr, "invalid frame count: %s\n", value);
-                return 0;
-            }
-            opts->frames = (unsigned long) number;
-        } else if (strcmp(argument, "-screenshot") == 0 ||
-                   strcmp(argument, "--screenshot") == 0) {
-            opts->screenshot_path = value;
-        } else if (strcmp(argument, "-no-vsync") == 0 ||
-                   strcmp(argument, "--no-vsync") == 0) {
+        } else if (strcmp(arg, "-root") == 0 || strcmp(arg, "--root") == 0) {
+            opts->root_mode = 1; opts->window_mode = 0; opts->have_window_id = 0;
+        } else if (strcmp(arg, "-window") == 0 || strcmp(arg, "--window") == 0) {
+            opts->root_mode = 0; opts->window_mode = 1; opts->have_window_id = 0;
+        } else if (strcmp(arg, "-window-id") == 0 || strcmp(arg, "--window-id") == 0) {
+            if (!parse_window_id(value, &opts->window_id)) { fprintf(stderr, "invalid window ID: %s\n", value); return 0; }
+            opts->root_mode = 0; opts->window_mode = 0; opts->have_window_id = 1;
+        } else if (strcmp(arg, "-geometry") == 0 || strcmp(arg, "--geometry") == 0) {
+            if (!parse_geometry(value, &opts->width, &opts->height)) { fprintf(stderr, "invalid geometry: %s\n", value); return 0; }
+        } else if (strcmp(arg, "-fps") == 0 || strcmp(arg, "--fps") == 0 || strcmp(arg, "-maxfps") == 0 || strcmp(arg, "--maxfps") == 0) {
+            if (!parse_long(value, 5L, 120L, &number)) return 0;
+            opts->fps = (int)number; opts->delay_usec = (unsigned int)(1000000L / number);
+        } else if (strcmp(arg, "-delay") == 0 || strcmp(arg, "--delay") == 0) {
+            if (!parse_long(value, 1000L, 200000L, &number)) return 0;
+            opts->delay_usec = (unsigned int)number; opts->fps = (int)(1000000L / number);
+        } else if (strcmp(arg, "-columns") == 0 || strcmp(arg, "--columns") == 0) {
+            if (!parse_long(value, 40L, 240L, &number)) return 0;
+            opts->columns = (unsigned int)number;
+        } else if (strcmp(arg, "-cell-size") == 0 || strcmp(arg, "--cell-size") == 0) {
+            if (!parse_long(value, 8L, 40L, &number)) return 0;
+            /* Compatibility knob: 18px maps to the film default 108 columns at 1920 width. */
+            opts->columns = (unsigned int)(1944L / number);
+            if (opts->columns < 40U) opts->columns = 40U;
+            if (opts->columns > 240U) opts->columns = 240U;
+        } else if (strcmp(arg, "-density") == 0 || strcmp(arg, "--density") == 0) {
+            if (!parse_long(value, 10L, 90L, &number)) return 0;
+            opts->density = (int)number;
+        } else if (strcmp(arg, "-speed") == 0 || strcmp(arg, "--speed") == 0) {
+            if (!parse_long(value, 25L, 250L, &number)) return 0;
+            opts->speed = (int)number;
+        } else if (strcmp(arg, "-trail") == 0 || strcmp(arg, "--trail") == 0) {
+            if (!parse_long(value, 6L, 40L, &number)) return 0;
+            opts->trail = (int)number;
+        } else if (strcmp(arg, "-cycle") == 0 || strcmp(arg, "--cycle") == 0) {
+            if (!parse_long(value, 0L, 300L, &number)) return 0;
+            opts->cycle = (int)number;
+        } else if (strcmp(arg, "-glow") == 0 || strcmp(arg, "--glow") == 0) {
+            if (!parse_long(value, 0L, 100L, &number)) return 0;
+            opts->glow = (int)number;
+        } else if (strcmp(arg, "-contrast") == 0 || strcmp(arg, "--contrast") == 0) {
+            if (!parse_long(value, 20L, 100L, &number)) return 0;
+            opts->contrast = (int)number;
+        } else if (strcmp(arg, "-aspect") == 0 || strcmp(arg, "--aspect") == 0) {
+            if (strcmp(value, "auto") != 0 && strcmp(value, "4:3") != 0 && strcmp(value, "4/3") != 0 &&
+                strcmp(value, "16:9") != 0 && strcmp(value, "16/9") != 0 && strcmp(value, "2.39:1") != 0 && strcmp(value, "cinema") != 0) return 0;
+            opts->aspect = parse_aspect(value);
+        } else if (strcmp(arg, "-curvature") == 0 || strcmp(arg, "--curvature") == 0) {
+            if (!parse_long(value, 0L, 100L, &number)) return 0;
+            opts->curvature = (int)number;
+        } else if (strcmp(arg, "-scanlines") == 0 || strcmp(arg, "--scanlines") == 0) {
+            if (!parse_long(value, 0L, 100L, &number)) return 0;
+            opts->scanlines = (int)number;
+        } else if (strcmp(arg, "-phosphor-mask") == 0 || strcmp(arg, "--phosphor-mask") == 0) {
+            if (!parse_long(value, 0L, 100L, &number)) return 0;
+            opts->phosphor_mask = (int)number;
+        } else if (strcmp(arg, "-vignette") == 0 || strcmp(arg, "--vignette") == 0) {
+            if (!parse_long(value, 0L, 100L, &number)) return 0;
+            opts->vignette = (int)number;
+        } else if (strcmp(arg, "-persistence") == 0 || strcmp(arg, "--persistence") == 0) {
+            if (!parse_long(value, 0L, 100L, &number)) return 0;
+            opts->persistence = (int)number;
+        } else if (strcmp(arg, "-overscan") == 0 || strcmp(arg, "--overscan") == 0) {
+            if (!parse_long(value, 0L, 10L, &number)) return 0;
+            opts->overscan = (int)number;
+        } else if (strcmp(arg, "-crt") == 0 || strcmp(arg, "--crt") == 0) {
+            opts->crt = 1;
+        } else if (strcmp(arg, "-no-crt") == 0 || strcmp(arg, "--no-crt") == 0) {
+            opts->crt = 0;
+        } else if (strcmp(arg, "-no-vsync") == 0 || strcmp(arg, "--no-vsync") == 0) {
             opts->no_vsync = 1;
-        } else if (strcmp(argument, "-vsync") == 0 ||
-                   strcmp(argument, "--vsync") == 0) {
+        } else if (strcmp(arg, "-vsync") == 0 || strcmp(arg, "--vsync") == 0) {
             opts->no_vsync = 0;
-        } else if (strcmp(argument, "-verbose") == 0 ||
-                   strcmp(argument, "--verbose") == 0) {
+        } else if (strcmp(arg, "-seed") == 0 || strcmp(arg, "--seed") == 0) {
+            if (!parse_u64(value, &opts->seed)) return 0;
+            opts->seed_set = 1;
+        } else if (strcmp(arg, "-frames") == 0 || strcmp(arg, "--frames") == 0) {
+            if (!parse_long(value, 1L, 10000000L, &number)) return 0;
+            opts->frames = (unsigned long)number;
+        } else if (strcmp(arg, "-screenshot") == 0 || strcmp(arg, "--screenshot") == 0) {
+            opts->screenshot_path = value;
+        } else if (strcmp(arg, "-verbose") == 0 || strcmp(arg, "--verbose") == 0) {
             opts->verbose = 1;
-        } else if (strcmp(argument, "-self-test") == 0 ||
-                   strcmp(argument, "--self-test") == 0) {
+        } else if (strcmp(arg, "-self-test") == 0 || strcmp(arg, "--self-test") == 0) {
             opts->self_test = 1;
-        } else if (strcmp(argument, "-version") == 0 ||
-                   strcmp(argument, "--version") == 0) {
-            printf("matrixcode %s\n", MATRIXCODE_VERSION);
-            exit(EXIT_SUCCESS);
-        } else if (strcmp(argument, "-help") == 0 ||
-                   strcmp(argument, "--help") == 0 ||
-                   strcmp(argument, "-h") == 0) {
-            print_usage(stdout, argv[0]);
-            exit(EXIT_SUCCESS);
+        } else if (strcmp(arg, "-version") == 0 || strcmp(arg, "--version") == 0) {
+            printf("matrixcode %s\n", MATRIXCODE_VERSION); exit(EXIT_SUCCESS);
+        } else if (strcmp(arg, "-help") == 0 || strcmp(arg, "--help") == 0 || strcmp(arg, "-h") == 0) {
+            print_usage(stdout, argv[0]); exit(EXIT_SUCCESS);
         } else {
-            fprintf(stderr, "unknown option: %s\n", argument);
-            return 0;
+            fprintf(stderr, "unknown option: %s\n", arg); return 0;
         }
     }
     return 1;
+}
+
+static content_rect choose_content_rect(const options *opts, int width, int height)
+{
+    content_rect r;
+    float target = 0.0F;
+    float w = (float)width, h = (float)height;
+    if (opts->aspect == ASPECT_4_3) target = 4.0F / 3.0F;
+    else if (opts->aspect == ASPECT_16_9) target = 16.0F / 9.0F;
+    else if (opts->aspect == ASPECT_CINEMA) target = 2.39F;
+    if (target > 0.0F) {
+        if (w / h > target) w = h * target; else h = w / target;
+    }
+    if (opts->crt && opts->overscan > 0) {
+        float factor = 1.0F - (float)opts->overscan / 100.0F;
+        w *= factor; h *= factor;
+    }
+    r.x = ((float)width - w) * 0.5F;
+    r.y = ((float)height - h) * 0.5F;
+    r.width = w; r.height = h;
+    return r;
 }
 
 static unsigned int choose_glyph(simulation *sim)
 {
-    unsigned int total = (unsigned int) matrixcode_base_glyph_count();
-    unsigned int base;
+    unsigned int base_count = (unsigned int)matrixcode_base_glyph_count();
     unsigned int roll = rng_bounded(&sim->rng, 100U);
-    unsigned int mirror;
-
-    if (roll < 72U) {
-        base = rng_bounded(&sim->rng, MATRIXCODE_KANA_COUNT);
-    } else if (roll < 88U) {
-        base = MATRIXCODE_DIGIT_FIRST +
-               rng_bounded(&sim->rng, MATRIXCODE_DIGIT_COUNT);
-    } else {
-        base = MATRIXCODE_SYMBOL_FIRST +
-               rng_bounded(&sim->rng, total - MATRIXCODE_SYMBOL_FIRST);
-    }
-    mirror = rng_bounded(&sim->rng, 100U) < 44U ? total : 0U;
-    return base + mirror;
+    unsigned int base;
+    if (roll < 74U) base = rng_bounded(&sim->rng, MATRIXCODE_KANA_COUNT);
+    else if (roll < 89U) base = MATRIXCODE_DIGIT_FIRST + rng_bounded(&sim->rng, MATRIXCODE_DIGIT_COUNT);
+    else base = MATRIXCODE_SYMBOL_FIRST + rng_bounded(&sim->rng, base_count - MATRIXCODE_SYMBOL_FIRST);
+    /* Mirroring is common in the film language, but not every symbol is mirrored. */
+    if (rng_bounded(&sim->rng, 100U) < 36U) base += base_count;
+    return base;
 }
 
 static void simulation_free(simulation *sim)
 {
-    free(sim->cells);
-    free(sim->column);
-    sim->cells = NULL;
-    sim->column = NULL;
-    memset(sim, 0, sizeof(*sim));
+    free(sim->cells); free(sim->column); memset(sim, 0, sizeof(*sim));
 }
 
-static int simulation_resize(simulation *sim, const options *opts,
-                             int width, int height)
+static int simulation_resize(simulation *sim, const options *opts, int width, int height)
 {
-    uint64_t saved_rng_state = sim->rng.state;
-    unsigned int columns;
-    unsigned int rows;
-    size_t cell_count;
-    unsigned int x;
-    unsigned int y;
-
+    uint64_t saved = sim->rng.state;
+    content_rect r = choose_content_rect(opts, width, height);
+    unsigned int columns = opts->columns;
+    /* Keep the logical grid square in screen space.  The glyph itself is
+     * narrower than its cell (roughly 1.35:1 height:width, matching the
+     * first-film/operator reconstruction measurements), so column spacing is
+     * independent from glyph stroke width. */
+    unsigned int rows = (unsigned int)lroundf((float)columns * r.height / r.width);
+    size_t count;
+    unsigned int x, y;
     simulation_free(sim);
-    sim->rng.state = saved_rng_state != 0U ? saved_rng_state : UINT64_C(0x6A09E667F3BCC909);
-    sim->cell_height = (float) opts->cell_size;
-    sim->cell_width = fmaxf(7.0F, sim->cell_height * 0.64F);
-    columns = (unsigned int) fmaxf(1.0F, floorf((float) width / sim->cell_width));
-    rows = (unsigned int) fmaxf(1.0F, floorf((float) height / sim->cell_height)) + 2U;
-    cell_count = (size_t) columns * rows;
-
-    sim->cells = calloc(cell_count, sizeof(*sim->cells));
+    sim->rng.state = saved != 0U ? saved : UINT64_C(0x6A09E667F3BCC909);
+    if (rows < 24U) rows = 24U;
+    sim->columns = columns; sim->rows = rows; sim->content = r;
+    sim->cell_width = r.width / (float)columns;
+    sim->cell_height = r.height / (float)rows;
+    count = (size_t)columns * rows;
+    sim->cells = calloc(count, sizeof(*sim->cells));
     sim->column = calloc(columns, sizeof(*sim->column));
-    if (sim->cells == NULL || sim->column == NULL) {
-        simulation_free(sim);
-        return 0;
+    if (!sim->cells || !sim->column) { simulation_free(sim); return 0; }
+    for (y = 0U; y < rows; y++) for (x = 0U; x < columns; x++) {
+        cell *c = &sim->cells[(size_t)y * columns + x];
+        c->glyph = (uint16_t)choose_glyph(sim);
+        c->occupied = (uint8_t)(rng_bounded(&sim->rng, 100U) < 97U);
+        c->age = rng_float(&sim->rng);
+        c->cycle_rate = 0.55F + rng_float(&sim->rng) * 0.90F;
     }
-
-    sim->columns = columns;
-    sim->rows = rows;
-    sim->origin_x = ((float) width - (float) columns * sim->cell_width) * 0.5F;
-    sim->origin_y = -sim->cell_height;
-
-    for (y = 0U; y < rows; y++) {
-        for (x = 0U; x < columns; x++) {
-            cell *current = &sim->cells[(size_t) y * columns + x];
-            current->glyph = (uint16_t) choose_glyph(sim);
-            current->occupied = (uint8_t) (rng_bounded(&sim->rng, 100U) < 94U);
-            current->phase = (uint8_t) rng_bounded(&sim->rng, 256U);
-        }
-    }
-
     for (x = 0U; x < columns; x++) {
-        rain_column *column = &sim->column[x];
-        float speed_scale = (float) opts->speed / 100.0F;
-        float length_variation = 0.62F + rng_float(&sim->rng) * 0.85F;
-        float nominal_length = (float) opts->trail * length_variation;
-        float gap = 13.0F + rng_float(&sim->rng) * 35.0F;
-        unsigned int d;
-
-        column->active = rng_bounded(&sim->rng, 100U) < (unsigned int) opts->density;
-        column->drop_count = (rng_bounded(&sim->rng, 100U) < 27U) ? 2 : 1;
-        column->speed = (4.0F + rng_float(&sim->rng) * 5.5F) * speed_scale;
-        column->period = (float) rows + nominal_length + gap;
-        column->brightness = 0.72F + rng_float(&sim->rng) * 0.40F;
-        column->offset[0] = rng_float(&sim->rng) * column->period;
-        column->offset[1] = fmodf(column->offset[0] + column->period *
-                                  (0.46F + rng_float(&sim->rng) * 0.10F),
-                                  column->period);
-        for (d = 0U; d < MAX_DROPS_PER_COLUMN; d++) {
-            column->length[d] = fmaxf(5.0F, nominal_length *
-                                      (0.80F + rng_float(&sim->rng) * 0.35F));
-            column->last_head[d] = -1000000;
-        }
+        sim->column[x].time_offset = rng_float(&sim->rng) * 1000.0F;
+        sim->column[x].speed_scale = 0.50F + rng_float(&sim->rng) * 0.50F;
+        sim->column[x].brightness_scale = 0.88F + rng_float(&sim->rng) * 0.18F;
     }
     return 1;
 }
 
-static float drop_head(const rain_column *column, int drop_index, double time_value)
+static float fract_positive(float x) { return x - floorf(x); }
+static float wobble(float x) { return x + 0.3F * sinf(SQRT2_F * x) + 0.2F * sinf(SQRT5_F * x); }
+
+static float rain_raw(const simulation *sim, const options *opts, unsigned int x, int y, double time_value)
 {
-    float phase = fmodf((float) time_value * column->speed +
-                        column->offset[drop_index], column->period);
-    return phase - column->length[drop_index];
+    const rain_column *col = &sim->column[x];
+    float fall_speed = 0.60F * ((float)opts->speed / 100.0F) * col->speed_scale;
+    float rain_length = fmaxf(0.45F, (float)opts->trail / 12.0F);
+    float column_time = col->time_offset + (float)time_value * fall_speed;
+    float phase = ((float)(-y) * 0.01F + column_time) / rain_length;
+    phase = wobble(phase);
+    return 1.0F - fract_positive(phase);
 }
 
-static float drop_intensity(float distance, float length)
+static int is_cursor_cell(const simulation *sim, const options *opts, unsigned int x, unsigned int y, double t)
 {
-    float normalized;
-    float fade;
-    if (distance < -0.35F || distance > length) {
-        return 0.0F;
-    }
-    if (distance < 0.65F) {
-        return 1.0F - fmaxf(0.0F, distance) * 0.12F;
-    }
-    normalized = distance / length;
-    fade = expf(-distance * 0.115F) * powf(fmaxf(0.0F, 1.0F - normalized), 0.34F);
-    return fade;
+    float here = rain_raw(sim, opts, x, (int)y, t);
+    float below = rain_raw(sim, opts, x, (int)y + 1, t);
+    return here > 0.72F && here > below + 0.45F;
 }
 
-static float cell_intensity(const simulation *sim, unsigned int column_index,
-                            unsigned int row_index, double time_value,
-                            int *is_head)
+static void simulation_update(simulation *sim, const options *opts, double delta)
 {
-    const rain_column *column = &sim->column[column_index];
-    float best = 0.0F;
-    int head = 0;
-    int d;
-
-    if (!column->active) {
-        if (is_head != NULL) {
-            *is_head = 0;
-        }
-        return 0.0F;
-    }
-
-    for (d = 0; d < column->drop_count; d++) {
-        float distance = drop_head(column, d, time_value) - (float) row_index;
-        float intensity = drop_intensity(distance, column->length[d]);
-        if (intensity > best) {
-            best = intensity;
-            head = distance >= -0.35F && distance < 0.85F;
-        }
-    }
-    if (is_head != NULL) {
-        *is_head = head;
-    }
-    return fminf(1.0F, best * column->brightness);
-}
-
-static void mutate_cell(simulation *sim, unsigned int x, unsigned int y,
-                        int force_occupied)
-{
-    cell *target;
-    if (x >= sim->columns || y >= sim->rows) {
-        return;
-    }
-    target = &sim->cells[(size_t) y * sim->columns + x];
-    target->glyph = (uint16_t) choose_glyph(sim);
-    if (force_occupied) {
-        target->occupied = 1U;
-    } else if (rng_bounded(&sim->rng, 100U) < 8U) {
-        target->occupied = (uint8_t) !target->occupied;
-    }
-    target->phase = (uint8_t) rng_bounded(&sim->rng, 256U);
-}
-
-static void simulation_update(simulation *sim, const options *opts,
-                              double time_value, double delta)
-{
-    unsigned int x;
-    double mutations_per_second;
-    unsigned int random_mutations;
-
-    for (x = 0U; x < sim->columns; x++) {
-        rain_column *column = &sim->column[x];
-        int d;
-        if (!column->active) {
-            continue;
-        }
-        for (d = 0; d < column->drop_count; d++) {
-            int head = (int) floorf(drop_head(column, d, time_value));
-            int previous = column->last_head[d];
-            if (previous < -999999) {
-                column->last_head[d] = head;
-                previous = head - 1;
-            }
-            if (head > previous) {
-                int row;
-                int limit = head - previous;
-                if (limit > (int) sim->rows + 8) {
-                    limit = 1;
-                    previous = head - 1;
-                }
-                for (row = previous + 1; row <= previous + limit; row++) {
-                    if (row >= 0 && row < (int) sim->rows) {
-                        mutate_cell(sim, x, (unsigned int) row, 1);
-                        if (row > 0 && rng_bounded(&sim->rng, 100U) < 24U) {
-                            mutate_cell(sim, x, (unsigned int) row - 1U, 0);
-                        }
-                    }
-                }
-            }
-            column->last_head[d] = head;
-        }
-    }
-
-    mutations_per_second = (double) sim->columns * (double) sim->rows *
-                           0.026 * (double) opts->cycle / 100.0;
-    sim->cycle_accumulator += delta * mutations_per_second;
-    random_mutations = (unsigned int) sim->cycle_accumulator;
-    sim->cycle_accumulator -= (double) random_mutations;
-    while (random_mutations-- > 0U) {
-        unsigned int rx = rng_bounded(&sim->rng, sim->columns);
-        unsigned int ry = rng_bounded(&sim->rng, sim->rows);
-        if (cell_intensity(sim, rx, ry, time_value, NULL) > 0.035F ||
-            rng_bounded(&sim->rng, 100U) < 12U) {
-            mutate_cell(sim, rx, ry, 0);
+    size_t i, count = (size_t)sim->columns * sim->rows;
+    float global_rate = 0.60F * (float)opts->cycle / 100.0F;
+    if (global_rate <= 0.0F) return;
+    for (i = 0U; i < count; i++) {
+        cell *c = &sim->cells[i];
+        c->age += (float)delta * global_rate * c->cycle_rate;
+        if (c->age >= 1.0F) {
+            c->age = fract_positive(c->age);
+            c->glyph = (uint16_t)choose_glyph(sim);
+            if (rng_bounded(&sim->rng, 100U) < 4U) c->occupied = (uint8_t)!c->occupied;
         }
     }
 }
@@ -721,745 +593,460 @@ static void simulation_update(simulation *sim, const options *opts,
 static void setup_projection(int width, int height)
 {
     glViewport(0, 0, width, height);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0.0, (double) width, (double) height, 0.0, -1.0, 1.0);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
+    glMatrixMode(GL_PROJECTION); glLoadIdentity();
+    glOrtho(0.0, (double)width, (double)height, 0.0, -1.0, 1.0);
+    glMatrixMode(GL_MODELVIEW); glLoadIdentity();
 }
 
-static int upload_texture(GLuint *texture, const matrixcode_atlas *atlas,
-                          const uint8_t *pixels)
+static int upload_texture(GLuint *texture, const matrixcode_atlas *atlas, const uint8_t *pixels, GLint filter)
 {
     glGenTextures(1, texture);
-    if (*texture == 0U) {
-        return 0;
-    }
+    if (*texture == 0U) return 0;
     glBindTexture(GL_TEXTURE_2D, *texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
-                 (GLsizei) atlas->width, (GLsizei) atlas->height,
-                 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei)atlas->width, (GLsizei)atlas->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     return 1;
 }
 
-static int gl_resources_init(gl_resources *resources)
+static int gl_resources_init(gl_resources *res)
 {
-    memset(resources, 0, sizeof(*resources));
-    if (!matrixcode_build_atlas(&resources->atlas)) {
-        fprintf(stderr, "could not construct glyph atlas\n");
-        return 0;
-    }
-    if (!upload_texture(&resources->core_texture, &resources->atlas,
-                        resources->atlas.core_rgba) ||
-        !upload_texture(&resources->glow_texture, &resources->atlas,
-                        resources->atlas.glow_rgba)) {
-        fprintf(stderr, "could not upload glyph textures\n");
-        return 0;
-    }
+    memset(res, 0, sizeof(*res));
+    if (!matrixcode_build_atlas(&res->atlas)) return 0;
+    if (!upload_texture(&res->core_texture, &res->atlas, res->atlas.core_rgba, GL_NEAREST) ||
+        !upload_texture(&res->glow_texture, &res->atlas, res->atlas.glow_rgba, GL_LINEAR)) return 0;
     return 1;
 }
 
-static void gl_resources_free(gl_resources *resources)
+static void gl_resources_free(gl_resources *res)
 {
-    if (resources->core_texture != 0U) {
-        glDeleteTextures(1, &resources->core_texture);
-    }
-    if (resources->glow_texture != 0U) {
-        glDeleteTextures(1, &resources->glow_texture);
-    }
-    matrixcode_free_atlas(&resources->atlas);
-    memset(resources, 0, sizeof(*resources));
+    if (res->core_texture) glDeleteTextures(1, &res->core_texture);
+    if (res->glow_texture) glDeleteTextures(1, &res->glow_texture);
+    matrixcode_free_atlas(&res->atlas); memset(res, 0, sizeof(*res));
 }
 
-static void atlas_coordinates(const matrixcode_atlas *atlas,
-                              unsigned int glyph,
-                              float *u0, float *v0, float *u1, float *v1)
+static void atlas_coords(const matrixcode_atlas *atlas, unsigned int glyph, float *u0, float *v0, float *u1, float *v1)
 {
     const float padding = 7.0F;
-    unsigned int column = glyph % atlas->columns;
-    unsigned int row = glyph / atlas->columns;
-    float left = (float) column * (float) atlas->cell_width + padding;
-    float top = (float) row * (float) atlas->cell_height + padding;
-    float right = left + (float) MATRIXCODE_GLYPH_WIDTH * 4.0F;
-    float bottom = top + (float) MATRIXCODE_GLYPH_HEIGHT * 4.0F;
-    *u0 = left / (float) atlas->width;
-    *v0 = top / (float) atlas->height;
-    *u1 = right / (float) atlas->width;
-    *v1 = bottom / (float) atlas->height;
+    unsigned int col = glyph % atlas->columns, row = glyph / atlas->columns;
+    float left = (float)col * (float)atlas->cell_width + padding;
+    float top = (float)row * (float)atlas->cell_height + padding;
+    float right = left + (float)MATRIXCODE_GLYPH_WIDTH * 4.0F;
+    float bottom = top + (float)MATRIXCODE_GLYPH_HEIGHT * 4.0F;
+    *u0 = left / (float)atlas->width; *v0 = top / (float)atlas->height;
+    *u1 = right / (float)atlas->width; *v1 = bottom / (float)atlas->height;
 }
 
-static void emit_glyph_quad(const app *application, unsigned int glyph,
-                            float x, float y, float width, float height,
-                            float red, float green, float blue, float alpha)
+static float smoothstep_local(float a, float b, float x)
 {
-    float u0;
-    float v0;
-    float u1;
-    float v1;
-    atlas_coordinates(&application->gl.atlas, glyph, &u0, &v0, &u1, &v1);
-    glColor4f(red, green, blue, alpha);
-    glTexCoord2f(u0, v0);
-    glVertex2f(x, y);
-    glTexCoord2f(u1, v0);
-    glVertex2f(x + width, y);
-    glTexCoord2f(u1, v1);
-    glVertex2f(x + width, y + height);
-    glTexCoord2f(u0, v1);
-    glVertex2f(x, y + height);
+    float t;
+    if (a == b) return x < a ? 0.0F : 1.0F;
+    t = (x - a) / (b - a); if (t < 0.0F) t = 0.0F; if (t > 1.0F) t = 1.0F;
+    return t * t * (3.0F - 2.0F * t);
 }
 
-static float smoothstepf(float edge0, float edge1, float value)
+static void warp_point(const options *opts, const content_rect *r, float x, float y, float *out_x, float *out_y)
 {
-    float x;
-    if (edge0 == edge1) {
-        return value < edge0 ? 0.0F : 1.0F;
+    float nx;
+    float ny;
+    if (opts->crt) {
+        /* Quantize onto a 640x480 virtual raster before applying tube curvature.
+         * This is what makes a 1440p/4K panel read like photographed late-90s video
+         * instead of perfectly resolution-independent vector graphics. */
+        float lx = (x - r->x) / r->width * 640.0F;
+        float ly = (y - r->y) / r->height * 480.0F;
+        lx = floorf(lx + 0.5F);
+        ly = floorf(ly + 0.5F);
+        x = r->x + lx / 640.0F * r->width;
+        y = r->y + ly / 480.0F * r->height;
     }
-    x = (value - edge0) / (edge1 - edge0);
-    x = fminf(1.0F, fmaxf(0.0F, x));
-    return x * x * (3.0F - 2.0F * x);
+    nx = ((x - r->x) / r->width) * 2.0F - 1.0F;
+    ny = ((y - r->y) / r->height) * 2.0F - 1.0F;
+    float k = opts->crt ? (float)opts->curvature / 100.0F * 0.085F : 0.0F;
+    float r2 = nx * nx + ny * ny;
+    float scale = 1.0F + k * r2;
+    nx *= scale; ny *= scale;
+    *out_x = r->x + (nx + 1.0F) * 0.5F * r->width;
+    *out_y = r->y + (ny + 1.0F) * 0.5F * r->height;
 }
 
-static void render_pass(const app *application, double time_value, int glow_pass)
+static int rounded_corner_visible(const options *opts, float nx, float ny)
 {
-    const simulation *sim = &application->sim;
-    const options *opts = &application->opts;
-    unsigned int x;
-    unsigned int y;
-    float contrast_gamma = 0.58F + (100.0F - (float) opts->contrast) * 0.010F;
-    uint32_t time_bucket = (uint32_t) floor(time_value * 15.0);
+    float ax = fabsf(nx), ay = fabsf(ny);
+    if (!opts->crt) return 1;
+    if (ax <= 0.93F || ay <= 0.93F) return 1;
+    {
+        float dx = (ax - 0.93F) / 0.07F;
+        float dy = (ay - 0.93F) / 0.07F;
+        return dx * dx + dy * dy <= 1.0F;
+    }
+}
 
+static float vignette_factor(const options *opts, float nx, float ny)
+{
+    float radial, edge, amount;
+    if (opts->vignette <= 0) return 1.0F;
+    radial = sqrtf(nx * nx + ny * ny) * 0.70710678F;
+    edge = smoothstep_local(0.58F, 1.0F, radial);
+    amount = (float)opts->vignette / 100.0F * 0.70F;
+    return 1.0F - edge * edge * amount;
+}
+
+static void emit_warped_quad(const app *a, unsigned int glyph, float x, float y, float w, float h,
+                             float red, float green, float blue, float alpha)
+{
+    float u0, v0, u1, v1;
+    float x0, y0, x1, y1, x2, y2, x3, y3;
+    atlas_coords(&a->gl.atlas, glyph, &u0, &v0, &u1, &v1);
+    warp_point(&a->opts, &a->sim.content, x, y, &x0, &y0);
+    warp_point(&a->opts, &a->sim.content, x + w, y, &x1, &y1);
+    warp_point(&a->opts, &a->sim.content, x + w, y + h, &x2, &y2);
+    warp_point(&a->opts, &a->sim.content, x, y + h, &x3, &y3);
+    glColor4f(red, green, blue, alpha);
+    glTexCoord2f(u0, v0); glVertex2f(x0, y0);
+    glTexCoord2f(u1, v0); glVertex2f(x1, y1);
+    glTexCoord2f(u1, v1); glVertex2f(x2, y2);
+    glTexCoord2f(u0, v1); glVertex2f(x3, y3);
+}
+
+static void render_rain_layer(const app *a, double t, float opacity, int glow_pass, float expansion)
+{
+    const simulation *sim = &a->sim;
+    const options *opts = &a->opts;
+    unsigned int x, y;
+    float threshold = 1.0F - (float)opts->density / 100.0F;
+    float trail_alpha = 0.205F + (float)opts->contrast / 100.0F * 0.145F;
     glBegin(GL_QUADS);
-    for (y = 0U; y < sim->rows; y++) {
-        for (x = 0U; x < sim->columns; x++) {
-            const cell *current = &sim->cells[(size_t) y * sim->columns + x];
-            int is_head = 0;
-            float intensity = cell_intensity(sim, x, y, time_value, &is_head);
-            uint32_t noise_hash;
-            float noise;
-            float head_mix;
-            float red;
-            float green;
-            float blue;
-            float alpha;
-            float px;
-            float py;
-            float draw_width;
-            float draw_height;
-
-            if (!current->occupied || intensity < 0.012F) {
-                continue;
-            }
-            noise_hash = hash_u32(((uint32_t) current->phase |
-                                   (x << 8U)) ^ (y << 20U) ^ time_bucket);
-            noise = 0.89F + (float) (noise_hash & 255U) / 255.0F * 0.15F;
-            intensity = powf(fminf(1.0F, intensity * noise), contrast_gamma);
-            head_mix = smoothstepf(0.73F, 1.0F, intensity);
-            if (is_head) {
-                head_mix = fmaxf(head_mix, 0.72F);
-            }
-
-            red = 0.008F + head_mix * 0.70F;
-            green = 0.46F + intensity * 0.50F + head_mix * 0.15F;
-            blue = 0.035F + intensity * 0.10F + head_mix * 0.56F;
-            green = fminf(1.0F, green);
-            blue = fminf(1.0F, blue);
-
-            px = sim->origin_x + (float) x * sim->cell_width;
-            py = sim->origin_y + (float) y * sim->cell_height;
-            draw_width = sim->cell_width;
-            draw_height = sim->cell_height;
-
-            if (glow_pass) {
-                float expansion = 0.34F * sim->cell_height;
-                float glow_strength = (float) opts->glow / 100.0F;
-                alpha = intensity * (0.24F + head_mix * 0.18F) * glow_strength;
-                px -= expansion * 0.5F;
-                py -= expansion * 0.5F;
-                draw_width += expansion;
-                draw_height += expansion;
-                emit_glyph_quad(application, current->glyph,
-                                px, py, draw_width, draw_height,
-                                red * 0.16F, green * 0.90F, blue * 0.35F, alpha);
+    for (y = 0U; y < sim->rows; y++) for (x = 0U; x < sim->columns; x++) {
+        const cell *c = &sim->cells[(size_t)y * sim->columns + x];
+        float raw, px, py, draw_w, draw_h, nx, ny, vig, alpha;
+        int cursor;
+        if (!c->occupied) continue;
+        raw = rain_raw(sim, opts, x, (int)y, t);
+        cursor = is_cursor_cell(sim, opts, x, y, t);
+        if (!cursor && raw <= threshold) continue;
+        px = sim->content.x + (float)x * sim->cell_width;
+        py = sim->content.y + (float)y * sim->cell_height;
+        nx = ((px + sim->cell_width * 0.5F - sim->content.x) / sim->content.width) * 2.0F - 1.0F;
+        ny = ((py + sim->cell_height * 0.5F - sim->content.y) / sim->content.height) * 2.0F - 1.0F;
+        if (!rounded_corner_visible(opts, nx, ny)) continue;
+        vig = vignette_factor(opts, nx, ny) * sim->column[x].brightness_scale;
+        /* Matrix operator glyphs read conspicuously tall and narrow.  The
+         * original clean-room bitmaps are 8x12, but mapping them into a nearly
+         * square quad made the old version look like generic terminal text. */
+        draw_h = sim->cell_height * 0.98F;
+        draw_w = fminf(sim->cell_width * 0.76F, draw_h / 1.35F);
+        px += (sim->cell_width - draw_w) * 0.5F;
+        py += (sim->cell_height - draw_h) * 0.5F;
+        if (glow_pass) {
+            float grow = expansion * sim->cell_height;
+            px -= grow * 0.5F; py -= grow * 0.5F; draw_w += grow; draw_h += grow;
+            if (cursor) {
+                alpha = 0.36F * opacity * ((float)opts->glow / 100.0F) * vig;
+                emit_warped_quad(a, c->glyph, px, py, draw_w, draw_h, 0.22F, 1.00F, 0.45F, alpha);
             } else {
-                alpha = fminf(1.0F, intensity * (0.78F + head_mix * 0.42F));
-                emit_glyph_quad(application, current->glyph,
-                                px, py, draw_width, draw_height,
-                                red, green, blue, alpha);
+                alpha = trail_alpha * 0.52F * opacity * ((float)opts->glow / 100.0F) * vig;
+                emit_warped_quad(a, c->glyph, px, py, draw_w, draw_h, 0.04F, 0.88F, 0.25F, alpha);
             }
+        } else if (cursor) {
+            alpha = 0.98F * opacity * vig;
+            emit_warped_quad(a, c->glyph, px, py, draw_w, draw_h, 0.62F, 1.00F, 0.76F, alpha);
+        } else {
+            alpha = trail_alpha * opacity * vig;
+            emit_warped_quad(a, c->glyph, px, py, draw_w, draw_h, 0.12F, 1.00F, 0.46F, alpha);
         }
     }
     glEnd();
 }
 
-static void render_frame(app *application, double time_value)
+static void render_crt_overlay(const app *a)
 {
-    glClearColor(0.0F, 0.001F, 0.0F, 1.0F);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glLoadIdentity();
-    glEnable(GL_TEXTURE_2D);
+    const content_rect *r = &a->sim.content;
+    glDisable(GL_TEXTURE_2D);
     glEnable(GL_BLEND);
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_LIGHTING);
-
-    if (application->opts.glow > 0) {
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-        glBindTexture(GL_TEXTURE_2D, application->gl.glow_texture);
-        render_pass(application, time_value, 1);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    if (a->opts.scanlines > 0) {
+        float alpha = (float)a->opts.scanlines / 100.0F * 0.20F;
+        float spacing = fmaxf(2.0F, r->height / 480.0F * 2.0F);
+        float fy;
+        glLineWidth(1.0F); glBegin(GL_LINES);
+        for (fy = r->y + spacing * 0.5F; fy <= r->y + r->height; fy += spacing) {
+            glColor4f(0.0F, 0.0F, 0.0F, alpha);
+            glVertex2f(r->x, fy); glVertex2f(r->x + r->width, fy);
+        }
+        glEnd();
     }
+    if (a->opts.phosphor_mask > 0) {
+        float alpha = (float)a->opts.phosphor_mask / 100.0F * 0.13F;
+        float spacing = fmaxf(2.0F, r->width / 640.0F * 2.0F);
+        float fx;
+        glBegin(GL_LINES);
+        for (fx = r->x + spacing * 0.5F; fx <= r->x + r->width; fx += spacing) {
+            glColor4f(0.0F, 0.0F, 0.0F, alpha);
+            glVertex2f(fx, r->y); glVertex2f(fx, r->y + r->height);
+        }
+        glEnd();
+    }
+    glEnable(GL_TEXTURE_2D);
+}
+
+static void render_frame(app *a, double t)
+{
+    glClearColor(0.0F, 0.0010F, 0.0002F, 1.0F); glClear(GL_COLOR_BUFFER_BIT);
+    glLoadIdentity();
+    glEnable(GL_TEXTURE_2D); glEnable(GL_BLEND);
+    glDisable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE); glDisable(GL_LIGHTING);
 
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-    glBindTexture(GL_TEXTURE_2D, application->gl.core_texture);
-    render_pass(application, time_value, 0);
+    if (a->opts.crt && a->opts.persistence > 0) {
+        float p = (float)a->opts.persistence / 100.0F * 0.36F;
+        glBindTexture(GL_TEXTURE_2D, a->gl.glow_texture);
+        render_rain_layer(a, t - 1.0 / 60.0, p, 1, 0.58F);
+        glBindTexture(GL_TEXTURE_2D, a->gl.core_texture);
+        render_rain_layer(a, t - 1.0 / 60.0, p * 0.45F, 0, 0.0F);
+    }
+    if (a->opts.glow > 0) {
+        glBindTexture(GL_TEXTURE_2D, a->gl.glow_texture);
+        render_rain_layer(a, t, 0.38F, 1, 0.78F);
+        render_rain_layer(a, t, 0.70F, 1, 0.34F);
+    }
+    glBindTexture(GL_TEXTURE_2D, a->gl.core_texture);
+    render_rain_layer(a, t, 1.0F, 0, 0.0F);
+    if (a->opts.crt) render_crt_overlay(a);
     glFlush();
 }
 
-static int write_ppm(const app *application, const char *path)
+static int write_ppm(const app *a, const char *path)
 {
     FILE *file;
-    uint8_t *pixels;
-    uint8_t *row;
+    uint8_t *pixels, *row;
     size_t row_size;
     int y;
-
-    if (path == NULL) {
-        return 1;
-    }
-    row_size = (size_t) application->width * 4U;
-    pixels = malloc(row_size * (size_t) application->height);
-    row = malloc((size_t) application->width * 3U);
-    if (pixels == NULL || row == NULL) {
-        fprintf(stderr, "could not allocate screenshot buffer\n");
-        free(pixels);
-        free(row);
-        return 0;
-    }
-
-    glFinish();
-    glPixelStorei(GL_PACK_ALIGNMENT, 1);
-    glReadBuffer(application->double_buffer ? GL_BACK : GL_FRONT);
-    glReadPixels(0, 0, application->width, application->height,
-                 GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-
+    if (!path) return 1;
+    row_size = (size_t)a->width * 4U;
+    pixels = malloc(row_size * (size_t)a->height);
+    row = malloc((size_t)a->width * 3U);
+    if (!pixels || !row) { free(pixels); free(row); return 0; }
+    glFinish(); glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadBuffer(a->double_buffer ? GL_BACK : GL_FRONT);
+    glReadPixels(0, 0, a->width, a->height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     file = fopen(path, "wb");
-    if (file == NULL) {
-        fprintf(stderr, "could not open screenshot %s: %s\n",
-                path, strerror(errno));
-        free(pixels);
-        free(row);
-        return 0;
-    }
-    fprintf(file, "P6\n%d %d\n255\n", application->width, application->height);
-    for (y = application->height - 1; y >= 0; y--) {
-        int x;
-        const uint8_t *source = pixels + (size_t) y * row_size;
-        for (x = 0; x < application->width; x++) {
-            row[(size_t) x * 3U + 0U] = source[(size_t) x * 4U + 0U];
-            row[(size_t) x * 3U + 1U] = source[(size_t) x * 4U + 1U];
-            row[(size_t) x * 3U + 2U] = source[(size_t) x * 4U + 2U];
+    if (!file) { free(pixels); free(row); return 0; }
+    fprintf(file, "P6\n%d %d\n255\n", a->width, a->height);
+    for (y = a->height - 1; y >= 0; y--) {
+        int x; const uint8_t *src = pixels + (size_t)y * row_size;
+        for (x = 0; x < a->width; x++) {
+            row[(size_t)x * 3U] = src[(size_t)x * 4U];
+            row[(size_t)x * 3U + 1U] = src[(size_t)x * 4U + 1U];
+            row[(size_t)x * 3U + 2U] = src[(size_t)x * 4U + 2U];
         }
-        if (fwrite(row, 1U, (size_t) application->width * 3U, file) !=
-            (size_t) application->width * 3U) {
-            fprintf(stderr, "could not write screenshot %s\n", path);
-            fclose(file);
-            free(pixels);
-            free(row);
-            return 0;
-        }
+        if (fwrite(row, 1U, (size_t)a->width * 3U, file) != (size_t)a->width * 3U) { fclose(file); free(pixels); free(row); return 0; }
     }
-    if (fclose(file) != 0) {
-        fprintf(stderr, "could not close screenshot %s\n", path);
-        free(pixels);
-        free(row);
-        return 0;
-    }
-    free(pixels);
-    free(row);
-    return 1;
+    if (fclose(file) != 0) { free(pixels); free(row); return 0; }
+    free(pixels); free(row); return 1;
 }
 
-static XVisualInfo *visual_info_for_window(Display *display, int screen,
-                                            Window window)
+static XVisualInfo *visual_info_for_window(Display *display, int screen, Window window)
 {
-    XWindowAttributes attributes;
-    XVisualInfo template;
+    XWindowAttributes attrs;
+    XVisualInfo templ;
     XVisualInfo *result;
-    int count = 0;
-    int use_gl = 0;
-
-    if (!XGetWindowAttributes(display, window, &attributes)) {
-        return NULL;
-    }
-    memset(&template, 0, sizeof(template));
-    template.visualid = XVisualIDFromVisual(attributes.visual);
-    template.screen = screen;
-    result = XGetVisualInfo(display, VisualIDMask | VisualScreenMask,
-                            &template, &count);
-    if (result == NULL || count < 1) {
-        return NULL;
-    }
-    if (glXGetConfig(display, result, GLX_USE_GL, &use_gl) != 0 || !use_gl) {
-        XFree(result);
-        return NULL;
-    }
+    int count = 0, use_gl = 0;
+    if (!XGetWindowAttributes(display, window, &attrs)) return NULL;
+    memset(&templ, 0, sizeof(templ));
+    templ.visualid = XVisualIDFromVisual(attrs.visual); templ.screen = screen;
+    result = XGetVisualInfo(display, VisualIDMask | VisualScreenMask, &templ, &count);
+    if (!result || count < 1) return result;
+    if (glXGetConfig(display, result, GLX_USE_GL, &use_gl) != 0 || !use_gl) { XFree(result); return NULL; }
     return result;
 }
 
-static XVisualInfo *choose_owned_visual(Display *display, int screen,
-                                        int *double_buffer)
+static int create_owned_window(app *a)
 {
-    int attributes_double[] = {
-        GLX_RGBA,
-        GLX_DOUBLEBUFFER,
-        GLX_RED_SIZE, 8,
-        GLX_GREEN_SIZE, 8,
-        GLX_BLUE_SIZE, 8,
-        GLX_ALPHA_SIZE, 8,
-        None
-    };
-    int attributes_single[] = {
-        GLX_RGBA,
-        GLX_RED_SIZE, 8,
-        GLX_GREEN_SIZE, 8,
-        GLX_BLUE_SIZE, 8,
-        None
-    };
-    XVisualInfo *visual = glXChooseVisual(display, screen, attributes_double);
-    if (visual != NULL) {
-        *double_buffer = 1;
-        return visual;
+    int attrs[] = { GLX_RGBA, GLX_DOUBLEBUFFER, GLX_RED_SIZE, 8, GLX_GREEN_SIZE, 8, GLX_BLUE_SIZE, 8, None };
+    XSetWindowAttributes swa;
+    a->visual_info = glXChooseVisual(a->display, a->screen, attrs);
+    if (!a->visual_info) {
+        int fallback[] = { GLX_RGBA, GLX_RED_SIZE, 8, GLX_GREEN_SIZE, 8, GLX_BLUE_SIZE, 8, None };
+        a->visual_info = glXChooseVisual(a->display, a->screen, fallback);
     }
-    visual = glXChooseVisual(display, screen, attributes_single);
-    *double_buffer = 0;
-    return visual;
-}
-
-static int create_owned_window(app *application)
-{
-    XSetWindowAttributes attributes;
-    XSizeHints size_hints;
-    XClassHint class_hint;
-    char resource_name[] = "matrixcode";
-    char resource_class[] = "MatrixCode";
-
-    application->visual_info = choose_owned_visual(application->display,
-                                                    application->screen,
-                                                    &application->double_buffer);
-    if (application->visual_info == NULL) {
-        fprintf(stderr, "no suitable GLX visual found\n");
-        return 0;
-    }
-
-    application->colormap = XCreateColormap(
-        application->display,
-        RootWindow(application->display, application->screen),
-        application->visual_info->visual,
-        AllocNone);
-    attributes.colormap = application->colormap;
-    attributes.background_pixel = 0UL;
-    attributes.border_pixel = 0UL;
-    attributes.event_mask = ExposureMask | StructureNotifyMask |
-                            KeyPressMask | ButtonPressMask;
-
-    application->owned_window = XCreateWindow(
-        application->display,
-        RootWindow(application->display, application->screen),
-        0, 0,
-        (unsigned int) application->opts.width,
-        (unsigned int) application->opts.height,
-        0,
-        application->visual_info->depth,
-        InputOutput,
-        application->visual_info->visual,
-        CWBackPixel | CWBorderPixel | CWColormap | CWEventMask,
-        &attributes);
-    if (application->owned_window == None) {
-        fprintf(stderr, "could not create X window\n");
-        return 0;
-    }
-    application->window = application->owned_window;
-
-    XStoreName(application->display, application->window,
-               "MatrixCode XScreenSaver preview");
-    class_hint.res_name = resource_name;
-    class_hint.res_class = resource_class;
-    XSetClassHint(application->display, application->window, &class_hint);
-    size_hints.flags = PSize;
-    size_hints.width = application->opts.width;
-    size_hints.height = application->opts.height;
-    XSetWMNormalHints(application->display, application->window, &size_hints);
-    application->wm_delete = XInternAtom(application->display,
-                                          "WM_DELETE_WINDOW", False);
-    XSetWMProtocols(application->display, application->window,
-                   &application->wm_delete, 1);
-    XMapWindow(application->display, application->window);
-    XSync(application->display, False);
+    if (!a->visual_info) return 0;
+    a->colormap = XCreateColormap(a->display, RootWindow(a->display, a->screen), a->visual_info->visual, AllocNone);
+    memset(&swa, 0, sizeof(swa)); swa.colormap = a->colormap; swa.event_mask = ExposureMask | StructureNotifyMask | KeyPressMask | ButtonPressMask;
+    a->owned_window = XCreateWindow(a->display, RootWindow(a->display, a->screen), 0, 0,
+                                    (unsigned int)a->opts.width, (unsigned int)a->opts.height, 0,
+                                    a->visual_info->depth, InputOutput, a->visual_info->visual,
+                                    CWColormap | CWEventMask, &swa);
+    if (a->owned_window == None) return 0;
+    a->window = a->owned_window; a->width = a->opts.width; a->height = a->opts.height;
+    XStoreName(a->display, a->window, "MatrixCode 1999 film study");
+    a->wm_delete = XInternAtom(a->display, "WM_DELETE_WINDOW", False);
+    (void)XSetWMProtocols(a->display, a->window, &a->wm_delete, 1);
+    XMapWindow(a->display, a->window); XSync(a->display, False);
     return 1;
 }
 
-static int select_target_window(app *application)
+static int select_target_window(app *a)
 {
-    const char *environment_window;
+    const char *env_window = getenv("XSCREENSAVER_WINDOW");
     Window target = None;
-    XWindowAttributes attributes;
+    XWindowAttributes attrs;
     int db = 0;
-
-    environment_window = getenv("XSCREENSAVER_WINDOW");
-    if (!application->opts.root_mode && !application->opts.have_window_id &&
-        environment_window != NULL && *environment_window != '\0') {
-        if (!parse_window_id(environment_window, &target)) {
-            fprintf(stderr, "invalid XSCREENSAVER_WINDOW value: %s\n",
-                    environment_window);
-            return 0;
-        }
-        application->opts.window_mode = 0;
-        application->opts.have_window_id = 1;
-        application->opts.window_id = target;
+    if (!a->opts.root_mode && !a->opts.have_window_id && env_window && *env_window) {
+        if (!parse_window_id(env_window, &target)) return 0;
+        a->opts.window_mode = 0; a->opts.have_window_id = 1; a->opts.window_id = target;
     }
-
-    if (application->opts.window_mode) {
-        return create_owned_window(application);
-    }
-    if (application->opts.root_mode) {
-        target = RootWindow(application->display, application->screen);
-    } else if (application->opts.have_window_id) {
-        target = application->opts.window_id;
-    }
-    if (target == None || !XGetWindowAttributes(application->display, target,
-                                                &attributes)) {
-        fprintf(stderr, "could not inspect target X window\n");
-        return 0;
-    }
-    application->window = target;
-    application->width = attributes.width;
-    application->height = attributes.height;
-    application->visual_info = visual_info_for_window(application->display,
-                                                       application->screen,
-                                                       target);
-    if (application->visual_info == NULL) {
-        fprintf(stderr, "target window visual is not GLX-capable\n");
-        return 0;
-    }
-    if (glXGetConfig(application->display, application->visual_info,
-                     GLX_DOUBLEBUFFER, &db) == 0) {
-        application->double_buffer = db != 0;
-    }
-    XSelectInput(application->display, application->window,
-                 ExposureMask | StructureNotifyMask);
+    if (a->opts.window_mode) return create_owned_window(a);
+    if (a->opts.root_mode) target = RootWindow(a->display, a->screen); else if (a->opts.have_window_id) target = a->opts.window_id;
+    if (target == None || !XGetWindowAttributes(a->display, target, &attrs)) return 0;
+    a->window = target; a->width = attrs.width; a->height = attrs.height;
+    a->visual_info = visual_info_for_window(a->display, a->screen, target);
+    if (!a->visual_info) { fprintf(stderr, "target window visual is not GLX-capable\n"); return 0; }
+    if (glXGetConfig(a->display, a->visual_info, GLX_DOUBLEBUFFER, &db) == 0) a->double_buffer = db != 0;
+    XSelectInput(a->display, a->window, ExposureMask | StructureNotifyMask);
     return 1;
 }
 
-static void request_swap_interval(app *application)
+static void request_swap_interval(app *a)
 {
-    const char *extensions;
-    if (application->opts.no_vsync) {
-        return;
+    const char *ext;
+    if (a->opts.no_vsync) return;
+    ext = glXQueryExtensionsString(a->display, a->screen);
+    if (ext && strstr(ext, "GLX_EXT_swap_control")) {
+        swap_interval_ext_proc proc = (swap_interval_ext_proc)glXGetProcAddressARB((const GLubyte *)"glXSwapIntervalEXT");
+        if (proc) { proc(a->display, a->window, 1); return; }
     }
-    extensions = glXQueryExtensionsString(application->display,
-                                          application->screen);
-    if (extensions != NULL && strstr(extensions, "GLX_EXT_swap_control") != NULL) {
-        swap_interval_ext_proc swap_interval_ext =
-            (swap_interval_ext_proc) glXGetProcAddressARB(
-                (const GLubyte *) "glXSwapIntervalEXT");
-        if (swap_interval_ext != NULL) {
-            swap_interval_ext(application->display, application->window, 1);
-            return;
-        }
-    }
-    if (extensions != NULL && strstr(extensions, "GLX_SGI_swap_control") != NULL) {
-        swap_interval_sgi_proc swap_interval_sgi =
-            (swap_interval_sgi_proc) glXGetProcAddressARB(
-                (const GLubyte *) "glXSwapIntervalSGI");
-        if (swap_interval_sgi != NULL) {
-            (void) swap_interval_sgi(1);
-        }
+    if (ext && strstr(ext, "GLX_SGI_swap_control")) {
+        swap_interval_sgi_proc proc = (swap_interval_sgi_proc)glXGetProcAddressARB((const GLubyte *)"glXSwapIntervalSGI");
+        if (proc) (void)proc(1);
     }
 }
 
-static int app_init(app *application, const options *opts)
+static int app_init(app *a, const options *opts)
 {
-    XWindowAttributes attributes;
-    const GLubyte *vendor;
-    const GLubyte *renderer;
-    const GLubyte *version;
-
-    memset(application, 0, sizeof(*application));
-    application->opts = *opts;
-    application->display = XOpenDisplay(NULL);
-    if (application->display == NULL) {
-        fprintf(stderr, "could not open X display\n");
-        return 0;
+    XWindowAttributes attrs;
+    memset(a, 0, sizeof(*a)); a->opts = *opts;
+    a->display = XOpenDisplay(NULL); if (!a->display) { fprintf(stderr, "could not open X display\n"); return 0; }
+    a->screen = DefaultScreen(a->display);
+    a->sim.rng.state = opts->seed_set ? opts->seed : (((uint64_t)time(NULL) << 32U) ^ (uint64_t)getpid() ^ UINT64_C(0x6d6174726978636f));
+    if (!select_target_window(a)) return 0;
+    if (!XGetWindowAttributes(a->display, a->window, &attrs)) return 0;
+    a->width = attrs.width; a->height = attrs.height;
+    if (a->owned_window != None) {
+        int db = 0;
+        if (glXGetConfig(a->display, a->visual_info, GLX_DOUBLEBUFFER, &db) == 0) a->double_buffer = db != 0;
     }
-    application->screen = DefaultScreen(application->display);
-    application->sim.rng.state = opts->seed_set ? opts->seed :
-        ((uint64_t) time(NULL) << 32U) ^ (uint64_t) getpid() ^
-        UINT64_C(0x6d6174726978636f);
-
-    if (!select_target_window(application)) {
-        return 0;
-    }
-    if (!XGetWindowAttributes(application->display, application->window,
-                              &attributes)) {
-        fprintf(stderr, "could not read target window geometry\n");
-        return 0;
-    }
-    application->width = attributes.width;
-    application->height = attributes.height;
-
-    application->context = glXCreateContext(application->display,
-                                             application->visual_info,
-                                             NULL, True);
-    if (application->context == NULL) {
-        fprintf(stderr, "could not create GLX context\n");
-        return 0;
-    }
-    if (!glXMakeCurrent(application->display, application->window,
-                        application->context)) {
-        fprintf(stderr, "could not make GLX context current\n");
-        return 0;
-    }
-    request_swap_interval(application);
-    setup_projection(application->width, application->height);
-    if (!gl_resources_init(&application->gl)) {
-        return 0;
-    }
-    if (!simulation_resize(&application->sim, &application->opts,
-                           application->width, application->height)) {
-        fprintf(stderr, "could not allocate rain simulation\n");
-        return 0;
-    }
-
-    if (application->opts.verbose) {
-        vendor = glGetString(GL_VENDOR);
-        renderer = glGetString(GL_RENDERER);
-        version = glGetString(GL_VERSION);
-        fprintf(stderr, "GL vendor: %s\n", vendor != NULL ? (const char *) vendor : "unknown");
-        fprintf(stderr, "GL renderer: %s\n", renderer != NULL ? (const char *) renderer : "unknown");
-        fprintf(stderr, "GL version: %s\n", version != NULL ? (const char *) version : "unknown");
-        fprintf(stderr, "grid: %u columns x %u rows, %.1fx%.1f cells\n",
-                application->sim.columns, application->sim.rows,
-                application->sim.cell_width, application->sim.cell_height);
+    a->context = glXCreateContext(a->display, a->visual_info, NULL, True); if (!a->context) return 0;
+    if (!glXMakeCurrent(a->display, a->window, a->context)) return 0;
+    request_swap_interval(a); setup_projection(a->width, a->height);
+    if (!gl_resources_init(&a->gl)) return 0;
+    if (!simulation_resize(&a->sim, &a->opts, a->width, a->height)) return 0;
+    if (a->opts.verbose) {
+        const GLubyte *vendor = glGetString(GL_VENDOR), *renderer = glGetString(GL_RENDERER), *version = glGetString(GL_VERSION);
+        fprintf(stderr, "profile: %s, grid: %ux%u, cell %.2fx%.2f, content %.0fx%.0f\n",
+                profile_name(a->opts.profile), a->sim.columns, a->sim.rows, a->sim.cell_width, a->sim.cell_height,
+                a->sim.content.width, a->sim.content.height);
+        fprintf(stderr, "GL vendor: %s\nGL renderer: %s\nGL version: %s\n",
+                vendor ? (const char *)vendor : "unknown", renderer ? (const char *)renderer : "unknown", version ? (const char *)version : "unknown");
     }
     return 1;
 }
 
-static void app_free(app *application)
+static void app_free(app *a)
 {
-    simulation_free(&application->sim);
-    if (application->display != NULL && application->context != NULL) {
-        gl_resources_free(&application->gl);
-        glXMakeCurrent(application->display, None, NULL);
-        glXDestroyContext(application->display, application->context);
-        application->context = NULL;
+    simulation_free(&a->sim);
+    if (a->display && a->context) {
+        gl_resources_free(&a->gl); glXMakeCurrent(a->display, None, NULL); glXDestroyContext(a->display, a->context);
     }
-    if (application->display != NULL && application->owned_window != None) {
-        XDestroyWindow(application->display, application->owned_window);
-    }
-    if (application->display != NULL && application->colormap != None) {
-        XFreeColormap(application->display, application->colormap);
-    }
-    if (application->visual_info != NULL) {
-        XFree(application->visual_info);
-    }
-    if (application->display != NULL) {
-        XCloseDisplay(application->display);
-    }
-    memset(application, 0, sizeof(*application));
+    if (a->display && a->owned_window != None) XDestroyWindow(a->display, a->owned_window);
+    if (a->display && a->colormap != None) XFreeColormap(a->display, a->colormap);
+    if (a->visual_info) XFree(a->visual_info);
+    if (a->display) XCloseDisplay(a->display);
+    memset(a, 0, sizeof(*a));
 }
 
-static int process_events(app *application)
+static int process_events(app *a)
 {
-    while (XPending(application->display) > 0) {
-        XEvent event;
-        XNextEvent(application->display, &event);
-        if (event.type == ConfigureNotify) {
-            int width = event.xconfigure.width;
-            int height = event.xconfigure.height;
-            if (width > 0 && height > 0 &&
-                (width != application->width || height != application->height)) {
-                application->width = width;
-                application->height = height;
-                setup_projection(width, height);
-                if (!simulation_resize(&application->sim, &application->opts,
-                                       width, height)) {
-                    return 0;
-                }
+    while (XPending(a->display) > 0) {
+        XEvent ev; XNextEvent(a->display, &ev);
+        if (ev.type == ConfigureNotify) {
+            int w = ev.xconfigure.width, h = ev.xconfigure.height;
+            if (w > 0 && h > 0 && (w != a->width || h != a->height)) {
+                a->width = w; a->height = h; setup_projection(w, h);
+                if (!simulation_resize(&a->sim, &a->opts, w, h)) return 0;
             }
-        } else if (event.type == ClientMessage && application->owned_window != None &&
-                   (Atom) event.xclient.data.l[0] == application->wm_delete) {
-            return 0;
-        } else if ((event.type == KeyPress || event.type == ButtonPress) &&
-                   application->owned_window != None) {
-            return 0;
-        }
+        } else if (ev.type == ClientMessage && a->owned_window != None && (Atom)ev.xclient.data.l[0] == a->wm_delete) return 0;
+        else if ((ev.type == KeyPress || ev.type == ButtonPress) && a->owned_window != None) return 0;
     }
     return 1;
 }
 
-static int run_app(app *application)
+static int run_app(app *a)
 {
-    double start = monotonic_seconds();
-    double previous = start;
-    double next_frame = start;
-    double frame_interval = (double) application->opts.delay_usec / 1000000.0;
+    double start = monotonic_seconds(), previous = start, next_frame = start;
+    double frame_interval = (double)a->opts.delay_usec / 1000000.0;
     int screenshot_written = 0;
-
     while (!stop_requested) {
-        double now;
-        double elapsed;
-        double delta;
-
-        if (!process_events(application)) {
-            break;
-        }
+        double now, elapsed, delta;
+        if (!process_events(a)) break;
         now = monotonic_seconds();
-        if (now < next_frame) {
-            sleep_seconds(next_frame - now);
-            now = monotonic_seconds();
-        }
-        if (application->opts.seed_set) {
-            elapsed = (double) application->rendered_frames * frame_interval;
-            delta = frame_interval;
-        } else {
-            elapsed = now - start;
-            delta = now - previous;
-            if (delta < 0.0 || delta > 0.25) {
-                delta = frame_interval;
-            }
-        }
+        if (now < next_frame) { sleep_seconds(next_frame - now); now = monotonic_seconds(); }
+        if (a->opts.seed_set) { elapsed = (double)a->rendered_frames * frame_interval; delta = frame_interval; }
+        else { elapsed = now - start; delta = now - previous; if (delta < 0.0 || delta > 0.25) delta = frame_interval; }
         previous = now;
-
-        simulation_update(&application->sim, &application->opts,
-                          elapsed, delta);
-        render_frame(application, elapsed);
-        application->rendered_frames++;
-
-        if (application->opts.frames > 0UL &&
-            application->rendered_frames >= application->opts.frames &&
-            application->opts.screenshot_path != NULL) {
-            screenshot_written = write_ppm(application,
-                                            application->opts.screenshot_path);
-        }
-
-        if (application->double_buffer) {
-            glXSwapBuffers(application->display, application->window);
-        } else {
-            glFlush();
-        }
-
-        if (application->opts.frames > 0UL &&
-            application->rendered_frames >= application->opts.frames) {
-            return application->opts.screenshot_path == NULL || screenshot_written;
-        }
+        simulation_update(&a->sim, &a->opts, delta);
+        render_frame(a, elapsed); a->rendered_frames++;
+        if (a->opts.frames > 0UL && a->rendered_frames >= a->opts.frames && a->opts.screenshot_path)
+            screenshot_written = write_ppm(a, a->opts.screenshot_path);
+        if (a->double_buffer) glXSwapBuffers(a->display, a->window); else glFlush();
+        if (a->opts.frames > 0UL && a->rendered_frames >= a->opts.frames)
+            return a->opts.screenshot_path == NULL || screenshot_written;
         next_frame += frame_interval;
-        if (next_frame < now - frame_interval) {
-            next_frame = now + frame_interval;
-        }
+        if (next_frame < now - frame_interval) next_frame = now + frame_interval;
     }
     return 1;
 }
 
 static int simulation_self_test(void)
 {
-    options opts;
-    simulation first;
-    simulation second;
-    rng_state a;
-    rng_state b;
-    unsigned int i;
-    int ok = 1;
-
-    options_defaults(&opts);
-    memset(&first, 0, sizeof(first));
-    memset(&second, 0, sizeof(second));
-    first.rng.state = UINT64_C(0x12345678abcdef01);
-    second.rng.state = UINT64_C(0x12345678abcdef01);
-    a.state = UINT64_C(0x55aa55aa55aa55aa);
-    b.state = UINT64_C(0x55aa55aa55aa55aa);
-
-    for (i = 0U; i < 1000U; i++) {
-        if (rng_next_u64(&a) != rng_next_u64(&b)) {
-            fprintf(stderr, "self-test: RNG is not deterministic\n");
-            ok = 0;
-            break;
+    options opts; simulation a, b; unsigned int i; int ok = 1;
+    options_profile_defaults(&opts, PROFILE_OPERATOR_1999); memset(&a, 0, sizeof(a)); memset(&b, 0, sizeof(b));
+    a.rng.state = UINT64_C(0x12345678abcdef01); b.rng.state = UINT64_C(0x12345678abcdef01);
+    if (!simulation_resize(&a, &opts, 1920, 1080) || !simulation_resize(&b, &opts, 1920, 1080)) return 0;
+    if (a.columns != 108U || a.rows != 81U || fabsf(a.content.width - 1440.0F * 0.98F) > 2.0F) {
+        fprintf(stderr, "self-test: operator geometry unexpected: %ux%u %.1fx%.1f\n", a.columns, a.rows, a.content.width, a.content.height); ok = 0;
+    }
+    if (memcmp(a.cells, b.cells, (size_t)a.columns * a.rows * sizeof(*a.cells)) != 0 ||
+        memcmp(a.column, b.column, (size_t)a.columns * sizeof(*a.column)) != 0) { fprintf(stderr, "self-test: seeded simulations differ\n"); ok = 0; }
+    for (i = 0U; i < 120U; i++) simulation_update(&a, &opts, 1.0 / 30.0);
+    for (i = 0U; i < a.columns * a.rows; i++) if (a.cells[i].glyph >= matrixcode_total_glyph_count()) { ok = 0; break; }
+    {
+        float cursor_count = 0.0F;
+        for (i = 0U; i < a.columns; i++) {
+            unsigned int y;
+            for (y = 0U; y < a.rows; y++) if (is_cursor_cell(&a, &opts, i, y, 1.0)) cursor_count += 1.0F;
         }
+        if (cursor_count < 8.0F || cursor_count > 90.0F) { fprintf(stderr, "self-test: implausible cursor population %.0f\n", cursor_count); ok = 0; }
     }
-    if (!(drop_intensity(0.0F, 18.0F) > drop_intensity(4.0F, 18.0F) &&
-          drop_intensity(4.0F, 18.0F) > drop_intensity(14.0F, 18.0F) &&
-          drop_intensity(19.0F, 18.0F) == 0.0F)) {
-        fprintf(stderr, "self-test: trail intensity curve is invalid\n");
-        ok = 0;
-    }
-    if (!simulation_resize(&first, &opts, 800, 600) ||
-        !simulation_resize(&second, &opts, 800, 600)) {
-        fprintf(stderr, "self-test: simulation allocation failed\n");
-        simulation_free(&first);
-        simulation_free(&second);
-        return 0;
-    }
-    if (first.columns != second.columns || first.rows != second.rows ||
-        memcmp(first.cells, second.cells,
-               (size_t) first.columns * first.rows * sizeof(*first.cells)) != 0 ||
-        memcmp(first.column, second.column,
-               (size_t) first.columns * sizeof(*first.column)) != 0) {
-        fprintf(stderr, "self-test: seeded simulations differ\n");
-        ok = 0;
-    }
-    for (i = 0U; i < 180U; i++) {
-        simulation_update(&first, &opts, (double) i / 30.0, 1.0 / 30.0);
-    }
-    for (i = 0U; i < first.columns * first.rows; i++) {
-        if (first.cells[i].glyph >= matrixcode_total_glyph_count()) {
-            fprintf(stderr, "self-test: glyph index escaped atlas\n");
-            ok = 0;
-            break;
-        }
-    }
-    simulation_free(&first);
-    simulation_free(&second);
-    return ok;
+    simulation_free(&a); simulation_free(&b); return ok;
 }
 
 static int run_self_tests(void)
 {
-    if (!matrixcode_glyphs_self_test()) {
-        return 0;
-    }
-    if (!simulation_self_test()) {
-        return 0;
-    }
-    printf("matrixcode: all self-tests passed\n");
-    return 1;
+    if (!matrixcode_glyphs_self_test()) return 0;
+    if (!simulation_self_test()) return 0;
+    printf("matrixcode: all self-tests passed\n"); return 1;
 }
 
 int main(int argc, char **argv)
 {
-    options opts;
-    app application;
-    int success;
-
-    if (!parse_options(argc, argv, &opts)) {
-        print_usage(stderr, argv[0]);
-        return EXIT_FAILURE;
-    }
-    if (opts.self_test) {
-        return run_self_tests() ? EXIT_SUCCESS : EXIT_FAILURE;
-    }
-
-    signal(SIGINT, signal_handler);
-    signal(SIGTERM, signal_handler);
-    signal(SIGHUP, signal_handler);
-
-    if (!app_init(&application, &opts)) {
-        app_free(&application);
-        return EXIT_FAILURE;
-    }
-    success = run_app(&application);
-    app_free(&application);
-    return success ? EXIT_SUCCESS : EXIT_FAILURE;
+    options opts; app application; int success;
+    if (!parse_options(argc, argv, &opts)) { print_usage(stderr, argv[0]); return EXIT_FAILURE; }
+    if (opts.self_test) return run_self_tests() ? EXIT_SUCCESS : EXIT_FAILURE;
+    signal(SIGINT, signal_handler); signal(SIGTERM, signal_handler); signal(SIGHUP, signal_handler);
+    if (!app_init(&application, &opts)) { app_free(&application); return EXIT_FAILURE; }
+    success = run_app(&application); app_free(&application); return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }

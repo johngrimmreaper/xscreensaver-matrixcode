@@ -1,38 +1,61 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<screensaver name="matrixcode" _label="MatrixCode" gl="yes">
+<screensaver name="matrixcode" _label="MatrixCode 1999 CRT" gl="yes">
   <command arg="-root"/>
 
   <number id="delay" type="slider" arg="-delay %"
           _label="Frame delay" _low-label="Faster" _high-label="Slower"
           low="8333" high="100000" default="33333"/>
 
-  <number id="cellSize" type="slider" arg="-cell-size %"
-          _label="Glyph size" _low-label="Smaller" _high-label="Larger"
-          low="10" high="40" default="18"/>
+  <number id="columns" type="slider" arg="-columns %"
+          _label="Code columns" _low-label="Larger glyphs" _high-label="Smaller glyphs"
+          low="72" high="144" default="108"/>
 
   <number id="density" type="slider" arg="-density %"
-          _label="Active columns" _low-label="Sparse" _high-label="Dense"
-          low="10" high="90" default="42"/>
+          _label="Illuminated code" _low-label="Sparse" _high-label="Dense"
+          low="25" high="80" default="55"/>
 
   <number id="speed" type="slider" arg="-speed %"
           _label="Fall speed" _low-label="Slower" _high-label="Faster"
-          low="25" high="250" default="100"/>
+          low="25" high="200" default="100"/>
 
   <number id="trail" type="slider" arg="-trail %"
-          _label="Trail length" _low-label="Shorter" _high-label="Longer"
+          _label="Rain length" _low-label="Shorter" _high-label="Longer"
           low="6" high="40" default="18"/>
 
   <number id="cycle" type="slider" arg="-cycle %"
           _label="Glyph changes" _low-label="Fewer" _high-label="More"
-          low="0" high="300" default="100"/>
+          low="0" high="250" default="100"/>
 
   <number id="glow" type="slider" arg="-glow %"
-          _label="Glow" _low-label="Subtle" _high-label="Strong"
-          low="0" high="100" default="68"/>
+          _label="Optical glow" _low-label="Subtle" _high-label="Strong"
+          low="0" high="100" default="76"/>
 
   <number id="contrast" type="slider" arg="-contrast %"
-          _label="Trail contrast" _low-label="Soft" _high-label="Crisp"
-          low="20" high="100" default="78"/>
+          _label="Code brightness" _low-label="Dimmer" _high-label="Brighter"
+          low="20" high="100" default="82"/>
+
+  <boolean id="crt" _label="1999 CRT display treatment"
+           arg-unset="-no-crt"/>
+
+  <number id="curvature" type="slider" arg="-curvature %"
+          _label="CRT tube curvature" _low-label="Flat" _high-label="Curved"
+          low="0" high="50" default="11"/>
+
+  <number id="scanlines" type="slider" arg="-scanlines %"
+          _label="CRT scanlines" _low-label="Subtle" _high-label="Strong"
+          low="0" high="70" default="32"/>
+
+  <number id="mask" type="slider" arg="-phosphor-mask %"
+          _label="CRT phosphor grille" _low-label="Subtle" _high-label="Strong"
+          low="0" high="60" default="14"/>
+
+  <number id="vignette" type="slider" arg="-vignette %"
+          _label="CRT edge darkening" _low-label="None" _high-label="Strong"
+          low="0" high="70" default="30"/>
+
+  <number id="persistence" type="slider" arg="-persistence %"
+          _label="Phosphor persistence" _low-label="Crisp" _high-label="Lingering"
+          low="0" high="60" default="14"/>
 
   <boolean id="vsync" _label="Request vertical synchronization"
            arg-unset="-no-vsync"/>
@@ -40,10 +63,10 @@
   <xscreensaver-updater />
 
   <_description>
-A clean-room interpretation of the falling digital code aesthetic: a fixed grid
-of hand-drawn, half-width katakana-inspired glyphs, mirrored variants, digits
-and punctuation illuminated by independently moving pulses. Bright pale heads,
-long irregular green tails and a lightweight two-pass glow reproduce the flat,
-photographic look without 3D geometry or a shader requirement.
++A clean-room reconstruction of original-era Matrix digital rain, tuned around
+the first film's 4:3 operator CRT displays. A fixed 108-column glyph grid is
+illuminated by irregular falling waves with pale cursors, restrained bloom,
+virtual 640x480 rasterization, scanlines, phosphor texture, persistence,
+curvature and edge falloff.
   </_description>
 </screensaver>

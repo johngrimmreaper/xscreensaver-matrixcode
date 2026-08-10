@@ -1,33 +1,87 @@
-# MatrixCode for XScreenSaver
+# MatrixCode for XScreenSaver — 1999 film-fidelity rework
 
-MatrixCode is a standalone OpenGL/GLX XScreenSaver hack designed to reproduce
-the **flat, sparse, irregular digital code rain** associated with the original
-*Matrix* films while remaining light enough for old or low-power X11 systems.
+MatrixCode is a standalone C/OpenGL/GLX XScreenSaver hack aimed at the visual
+language of the original *Matrix* era.  Version `0.2.0-film-rework` is a major
+fidelity pass over the initial renderer, with the first film's **operator CRT
+screen** as the default target rather than a generic modern "digital rain"
+effect.
 
-![MatrixCode preview](docs/preview.png)
+![deterministic operator1999 preview](docs/film1999.png)
 
-This repository builds one Debian/Ubuntu binary package:
+The installable Debian/Ubuntu package is:
 
 - `xscreensaver-screensaver-matrixcode`
 
-It installs beside XScreenSaver rather than modifying the upstream
-`xscreensaver` package.
+It installs beside XScreenSaver and does not modify the upstream `xscreensaver`
+package.
 
-## What makes this implementation different
+## Why the old version did not quite look like the movie
 
-- The glyph grid is stationary; illumination waves travel down it.
-- Each active column has one or occasionally two independently paced pulses.
-- Trails vary in length, brightness, spacing, and speed.
-- Heads approach pale green-white instead of uniform neon green.
-- Glyphs mutate selectively as a head passes, with quieter background cycling.
-- A custom 8x12 atlas combines original katakana-inspired forms, mirrored
-  variants, digits, and punctuation.
-- Glow is a lightweight additive texture pass, not a 3D scene or shader stack.
-- The renderer has no per-frame heap allocation and defaults to 30 FPS.
+The old renderer had several individually reasonable choices that combined to
+make it feel unlike a photographed 1999 workstation display:
 
-The glyph artwork is a **clean-room visual interpretation**. It does not copy
-Warner Bros. film frames, the official Matrix font, official Flash assets, or
-third-party glyph textures.
+- glyph size was derived directly from modern display pixels, so a 1080p/1440p
+  desktop changed the apparent typography dramatically;
+- glyph quads were too wide and read more like ordinary terminal characters;
+- the default 42% active-column model produced too much empty horizontal space;
+- trails used a smooth brightness gradient, while the first-film/operator look
+  is flatter and more uniformly luminous behind a very bright cursor;
+- the whole widescreen desktop was filled, whereas the prop displays read as
+  old 4:3 CRT imagery;
+- there was no raster/scanline/phosphor/tube treatment, so the image stayed
+  unnaturally clean on a modern LCD/OLED panel.
+
+The rework addresses those points as a system rather than by merely changing a
+font-size constant.
+
+## Profiles
+
+### `operator1999` (default)
+
+Designed for the green code seen on the operators' CRT displays in the first
+film:
+
+- 108 logical columns;
+- square logical cell grid with tall/narrow ~1.35:1 glyph quads;
+- 4:3 content aperture centered inside any modern display;
+- flat luminous rain bodies with pale green-white cursors;
+- irregular per-column timing and speed;
+- slow independent glyph cycling;
+- two-scale optical glow;
+- 640x480 virtual CRT raster;
+- subtle tube curvature, scanlines, phosphor grille, edge vignette and phosphor
+  persistence.
+
+Run it directly:
+
+```sh
+./matrixcode -window -profile operator1999
+```
+
+For a deterministic 1080p reference frame:
+
+```sh
+LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a \
+  ./matrixcode -window -geometry 1920x1080 -frames 90 \
+  -seed 19990331 -no-vsync -screenshot frame.ppm
+```
+
+### `opening1999`
+
+A cleaner cinematic presentation without the CRT treatment:
+
+```sh
+./matrixcode -window -profile opening1999
+```
+
+### `clean`
+
+A neutral modern rendering useful for comparing the rain simulation without the
+film/CRT treatment:
+
+```sh
+./matrixcode -window -profile clean
+```
 
 ## Build
 
@@ -40,19 +94,9 @@ make
 make check
 ```
 
-Run a preview:
-
-```sh
-./matrixcode -window
-```
-
-Render a deterministic test frame:
-
-```sh
-LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a \
-  ./matrixcode -window -geometry 1280x720 -frames 70 \
-  -seed 19990331 -no-vsync -screenshot preview.ppm
-```
+The normal build uses the system OpenGL headers.  A small compatibility header
+exists only for recovery/CI environments that have `libGL.so.1` but not the
+OpenGL development headers.
 
 ## Install from source
 
@@ -69,61 +113,63 @@ Installed files:
 /usr/share/man/man6/matrixcode.6x
 ```
 
-Restart `xscreensaver-settings` after installation. MatrixCode should appear in
-the list of screen savers. It can also be tested directly:
+Restart `xscreensaver-settings` after installation.  Direct full-screen testing:
 
 ```sh
 /usr/libexec/xscreensaver/matrixcode -root
 ```
 
-## Debian/Ubuntu package
+## Most useful tuning controls
 
-```sh
-sudo apt build-dep .
-dpkg-buildpackage -us -uc -b
-sudo apt install ../xscreensaver-screensaver-matrixcode_*.deb
+Start by changing **geometry**, not color:
+
+```text
+-columns       logical code columns (default 108)
+-aspect        auto, 4:3, 16:9, or 2.39:1
+-density       visible portion of the rain cycle
+-speed         fall speed
+-trail         rain period / illuminated run length
+-cycle         independent symbol cycling
 ```
 
-The source package is `xscreensaver-matrixcode`; the installable binary package
-is `xscreensaver-screensaver-matrixcode`.
+Then tune the photographic treatment:
 
-## Useful tuning
-
-The defaults intentionally avoid the common overly dense, overly fast look.
-For older hardware:
-
-```sh
-./matrixcode -window -fps 20 -cell-size 22 -density 34 -glow 48
+```text
+-glow
+-crt / -no-crt
+-curvature
+-scanlines
+-phosphor-mask
+-vignette
+-persistence
+-overscan
 ```
 
-For a denser display:
+See `docs/TUNING.md` and `matrixcode(6x)` for details.
 
-```sh
-./matrixcode -window -density 55 -trail 22 -cell-size 16
-```
+## Clean-room boundary
 
-See `matrixcode(6x)` or `./matrixcode -help` for every option.
+This repository deliberately does **not** ship the official Matrix glyph font,
+film-frame extractions, promotional SWF assets, or glyph textures copied from
+other recreations.  The 57 base 8x12 glyphs are the project's original
+clean-room artwork; mirrored variants provide 114 addressable glyphs.
 
-## Compatibility
-
-The normal build uses the system OpenGL and GLX development headers. A tiny
-`compat/minigl.h` declaration set exists solely so source-level CI or recovery
-environments with runtime GL libraries but no development headers can still
-exercise this OpenGL 1.x code. Debian/Ubuntu packages always build against
-`libgl-dev`.
+Public research into the motion, spacing and compositing behavior informed the
+renderer, but the artwork remains independent.  That preserves a useful legal
+and technical boundary while allowing the simulation to converge much more
+closely on the film's visual grammar.
 
 ## Documentation
 
-- [Design and fidelity](docs/DESIGN.md)
-- [Research notes](docs/RESEARCH.md)
-- [Performance architecture](docs/PERFORMANCE.md)
+- [Fidelity research](docs/FIDELITY-RESEARCH.md)
+- [Design](docs/DESIGN.md)
+- [Performance](docs/PERFORMANCE.md)
+- [Tuning and display calibration](docs/TUNING.md)
 - [Validation](docs/VALIDATION.md)
-- [Build report](docs/BUILD-REPORT.md)
-- [Contributing](CONTRIBUTING.md)
 
 ## License
 
-MIT/X11. See [LICENSE](LICENSE).
+MIT/X11.  See [LICENSE](LICENSE).
 
-`Matrix`, the Matrix code, and related marks are properties of their respective
-owners. This project is unofficial and unaffiliated.
+`Matrix`, its code imagery, and related marks are properties of their respective
+owners.  This project is unofficial and unaffiliated.
