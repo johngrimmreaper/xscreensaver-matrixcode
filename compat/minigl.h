@@ -90,6 +90,8 @@ extern __GLXextFuncPtr glXGetProcAddressARB(const GLubyte *);
 extern void glViewport(GLint, GLint, GLsizei, GLsizei);
 extern void glMatrixMode(GLenum);
 extern void glLoadIdentity(void);
+extern void glPushMatrix(void);
+extern void glPopMatrix(void);
 extern void glOrtho(GLdouble, GLdouble, GLdouble, GLdouble, GLdouble, GLdouble);
 extern void glDisable(GLenum);
 extern void glEnable(GLenum);

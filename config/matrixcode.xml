@@ -2,6 +2,9 @@
 <screensaver name="matrixcode" _label="MatrixCode 1999 CRT" gl="yes">
   <command arg="-root"/>
 
+  <boolean id="intro" _label="Play Neo terminal intro"
+           arg-unset="-no-scene"/>
+
   <number id="delay" type="slider" arg="-delay %"
           _label="Frame delay" _low-label="Faster" _high-label="Slower"
           low="8333" high="100000" default="33333"/>

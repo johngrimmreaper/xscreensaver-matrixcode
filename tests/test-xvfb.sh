@@ -9,7 +9,7 @@ rm -f "$out" "$helper" "$log"
 trap 'rm -f "$out" "$helper" "$log"' EXIT HUP INT TERM
 
 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a \
-  "$p" -window -profile operator1999 -geometry 1280x720 \
+  "$p" -window -profile operator1999 -no-scene -geometry 1280x720 \
   -frames 60 -fps 60 -seed 19990331 -no-vsync -screenshot "$out"
 python3 tests/check-ppm.py "$out"
 
@@ -19,7 +19,7 @@ ${CC:-cc} ${CFLAGS:-} -Wall -Wextra -Werror \
   -o "$helper" tests/resize-window.c $(pkg-config --cflags --libs x11)
 MATRIXCODE_TEST_PROGRAM="$p" MATRIXCODE_RESIZE_HELPER="$helper" \
   LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a sh -eu -c '
-    "$MATRIXCODE_TEST_PROGRAM" -window -geometry 960x720 -speed 40 \
+    "$MATRIXCODE_TEST_PROGRAM" -window -no-scene -geometry 960x720 -speed 40 \
       -verbose -no-vsync 2>"$1" &
     pid=$!
     trap "kill $pid 2>/dev/null || true" EXIT HUP INT TERM

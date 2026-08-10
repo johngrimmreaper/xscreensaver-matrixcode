@@ -34,6 +34,23 @@ make it feel unlike a photographed 1999 workstation display:
 The rework addresses those points as a system rather than by merely changing a
 font-size constant.
 
+## Startup scene
+
+By default MatrixCode begins with the `neo-terminal` scene: a deterministic
+clean-room reconstruction of the computer takeover near the beginning of the
+first film.  The scene uses a canonical 640x480 coordinate system and its own
+built-in bitmap terminal font, then hands off to the adaptive `operator1999`
+rain renderer.
+
+```sh
+./matrixcode -window                 # Neo terminal -> rain
+./matrixcode -window -no-scene       # rain immediately
+./matrixcode -window -scene neo-terminal
+```
+
+Resizing restarts the whole presentation from scene time zero.  See
+`docs/SCENES.md` for the scene-engine design and fidelity status.
+
 ## Profiles
 
 ### `operator1999` (default)
@@ -41,9 +58,9 @@ font-size constant.
 Designed for the green code seen on the operators' CRT displays in the first
 film:
 
-- 80x60 reference density at 4:3, extended horizontally on wider targets;
+- resolution-independent 80x60 reference grid on the 4:3 operator aperture;
 - square logical cell grid with tall/narrow ~1.35:1 glyph quads;
-- full-window composition by default, with square-cell density derived from height;
+- 4:3 content aperture centered inside any modern display;
 - flat luminous rain bodies with pale green-white cursors;
 - irregular per-column timing and speed;
 - slow independent glyph cycling;
@@ -149,21 +166,18 @@ See `docs/TUNING.md` and `matrixcode(6x)` for details.
 
 ## Resize and multi-monitor behavior
 
-MatrixCode derives cell dimensions from the actual drawable size.  The 4:3
-reference density is 80x60, but the default operator profile fills the complete
-target window: height determines the glyph scale and wider windows gain extra
-columns.  For example, 16:9 uses about 107x60 at the same glyph size.  A larger
-monitor at the same aspect keeps that logical composition and scales the glyphs
-up proportionally.  A settled resize is treated as a fresh simulation start:
-projection, grid allocation, random rain state and animation time are restarted
-for the new drawable.
+MatrixCode derives cell dimensions from the actual drawable size.  The default
+operator composition remains 80x60 while the glyphs scale up or down with the
+window, so maximizing a preview or running on a higher-resolution monitor does
+not cram more code onto the screen.  A resize is treated as a fresh simulation
+start: projection, grid allocation, random rain state and animation time are
+restarted for the new drawable.
 
 When launched by XScreenSaver, `XSCREENSAVER_WINDOW` is honored.  XScreenSaver
 creates a window for each physical monitor and launches a hack process for each
 one, so each MatrixCode instance independently sizes itself to its monitor.
-For direct `-root` use on a unified multi-monitor X root, the default `-aspect
-auto` fills that complete root.  Use `-aspect 4:3` only when deliberate
-pillarboxing is desired.
+For direct `-root` use on a unified multi-monitor X root, `-aspect auto` can be
+used when a continuous desktop-spanning composition is desired.
 
 ## Clean-room boundary
 

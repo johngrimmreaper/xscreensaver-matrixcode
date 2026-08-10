@@ -12,6 +12,18 @@ downward in independently timed waves.  The default operator1999 profile uses a
 workstation displays rather than a generic full-screen neon text effect.
 Window-size changes rebuild the simulation and restart animation timing so the
 new drawable is filled immediately at the same logical composition.
+.SH STARTUP SCENES
+.TP
+.B -scene neo-terminal
+Play the Neo terminal takeover recreation before entering Matrix rain.  This is
+the default.
+.TP
+.B -no-scene
+Skip the startup scene and begin Matrix rain immediately.
+.PP
+Scenes are authored in a canonical 640x480 coordinate system and scale
+uniformly to the target drawable.  Resizing restarts the presentation from the
+beginning of the startup scene.
 .SH PROFILES
 .TP
 .B -profile operator1999
