@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "research_date": "2026-08-11",
+  "topic": "The Matrix (1999) Neo workstation search-screen text archaeology",
+  "sources": [
+    {
+      "id": "bluray-local",
+      "type": "local-primary-reference",
+      "title": "User-owned The Matrix (1999) Blu-ray encode frame archive",
+      "url": null,
+      "role": "Final verification authority for what is actually visible in the 1999 cut.",
+      "reliability": "primary-visual-source"
+    },
+    {
+      "id": "lozhki-global-search-2004",
+      "type": "old-fan-forum-transcription",
+      "title": "GLOBAL SEARCH на мониторе Нео в М1",
+      "url": "https://lozhki.net/forum/showthread.php?postid=44771",
+      "alternate_url": "https://lozhki.net/forum/showthread.php?postid=65050",
+      "date_observed": "2004-04",
+      "role": "Detailed column-by-column Heathrow transcription with unreadable spans explicitly marked.",
+      "reliability": "high-value-secondary-needs-frame-verification",
+      "notes": [
+        "The author later says the work concerned the article visible on Neo's monitor.",
+        "The thread says later Matrix screen-text work used help from matrixexplained.com forum members.",
+        "Because it is a fan transcription, every disputed word remains subject to Blu-ray verification."
+      ],
+      "historical_image_leads": [
+        "http://groshvaso.newmail.ru/script/m1_all/delo.jpg",
+        "http://www.liveinternet.ru/images/attach/712819/1007252.jpg",
+        "http://www.liveinternet.ru/images/attach/712819/1007253.jpg"
+      ]
+    },
+    {
+      "id": "popapostle-matrix",
+      "type": "film-reference-site",
+      "title": "The Matrix - PopApostle episode study",
+      "url": "https://matrix.popapostle.com/html/episodes/The-Matrix.htm",
+      "role": "Independent screen-text cross-check; marks illegible regions and identifies An-Nahar and the later manhunt result.",
+      "reliability": "useful-secondary",
+      "important_disagreement": "Calls the final paper 'Press Courier', unlike Movies & TV Stack Exchange's 'The Courier Press'."
+    },
+    {
+      "id": "movies-se-neo-search",
+      "type": "community-research",
+      "title": "What program is Neo using? - Movies & TV Stack Exchange",
+      "url": "https://movies.stackexchange.com/questions/96852/what-program-is-neo-using",
+      "role": "Identifies GLOBAL SEARCH, result sequence, An-Nahar, final manhunt headline and a candidate publication name.",
+      "reliability": "useful-secondary",
+      "important_disagreement": "Calls the later paper 'The Courier Press'; needs Blu-ray verification."
+    },
+    {
+      "id": "societyx-heathrow",
+      "type": "fan-research-reproduction",
+      "title": "Breaking: Terrorist eludes police at Heathrow Airport",
+      "url": "https://5ocietyx.wordpress.com/2013/01/24/breaking-terrorist-eludes-police-at-heathrow-airport/",
+      "date_observed": "2013-01-24",
+      "role": "Corroborates several readable Heathrow concepts also present in the 2004 forum transcription.",
+      "reliability": "corroborative-secondary",
+      "caution": "May be derivative of earlier fan transcription; do not count as fully independent proof for every word."
+    },
+    {
+      "id": "opengamestudio-apartment",
+      "type": "open-source-transcription-localization-project",
+      "title": "Matrix/04.Apartment.html",
+      "url": "https://git.opengamestudio.org/ZH/Matrix/src/commit/d3397fa744fa632f9860751d9336198ae042a6a4/04.Apartment.html",
+      "date_observed": "2025-04-08",
+      "role": "Modern project independently records short screen captions/headlines.",
+      "reliability": "good-for-short-caption-crosscheck",
+      "caution": "Its Chinese strings are translations/localization, not evidence for the Chinese newspaper text visible in the 1999 film."
+    },
+    {
+      "id": "filmsite-matrix",
+      "type": "film-reference-site",
+      "title": "The Matrix (1999) - Filmsite",
+      "url": "https://www.filmsite.org/matrix.html",
+      "role": "Confirms Neo's Morpheus search, Heathrow headline and manhunt context.",
+      "reliability": "secondary"
+    },
+    {
+      "id": "kuleuven-postmodern-matrix",
+      "type": "academic-hosted-analysis",
+      "title": "Postmoderne film - The Matrix",
+      "url": "https://www.kuleuven.be/thomas/uploads/file/community/open/155965/TheMatrix-Postmodernefilm.htm",
+      "role": "Independent Dutch-language analysis describing Heathrow, An-Nahar and the later American manhunt headline.",
+      "reliability": "secondary"
+    },
+    {
+      "id": "transparent-arabic-annahar",
+      "type": "language-reference-site",
+      "title": "Who's Who on Lebanon's Arabic TV Channels",
+      "url": "https://blogs.transparent.com/arabic/whos-who-on-lebanons-arabic-tv-channels/",
+      "role": "Confirms Arabic spelling/title of An-Nahar, its meaning, and its appearance on Neo's computer.",
+      "reliability": "good-for-publication-identity-not-screen-body"
+    },
+    {
+      "id": "studioc-web06-ap01-local",
+      "type": "local-secondary-reference",
+      "title": "Studio C Web06_AP01 portfolio video crop",
+      "url": null,
+      "role": "Geometry, typography, layering and motion reference only.",
+      "reliability": "professional-secondary",
+      "caution": "Modern filler text in the reconstruction demonstrates that article body text cannot be assumed canonical for 1999."
+    }
+  ],
+  "historical_research_leads": [
+    {
+      "lead": "matrixexplained.com forum",
+      "status": "not-recovered-in-this-pass",
+      "why_it_matters": "The 2004 Lozhki thread says later Matrix screen-text decoding used help from matrixexplained.com forum members."
+    },
+    {
+      "lead": "groshvaso.newmail.ru/script/m1_all/delo.jpg",
+      "status": "old-image-url-found-no-current-image-recovered",
+      "why_it_matters": "An old forum participant posted it as material for people trying to read Matrix screen text."
+    },
+    {
+      "lead": "liveinternet.ru images 1007252.jpg and 1007253.jpg",
+      "status": "old-image-urls-found-no-current-images-recovered",
+      "why_it_matters": "Posted in the same 2004 Matrix screen-text archaeology thread."
+    }
+  ],
+  "research_conclusions": [
+    "The Heathrow headline is very strongly corroborated.",
+    "The Heathrow body is only partially recoverable from public transcriptions; column 2 has the strongest surviving reconstruction.",
+    "An-Nahar is strongly identified, but no reliable transcription of its 1999 Arabic body was found.",
+    "The first East-Asian-language result remains textually unresolved.",
+    "The final manhunt headline is strongly supported, but the paper name is disputed between 'Press Courier' and 'The Courier Press'.",
+    "No clearly better public 1999 still than the user's own 1080p Blu-ray frames was found in this pass."
+  ]
+}
