@@ -20,10 +20,18 @@ the default.
 .TP
 .B -no-scene
 Skip the startup scene and begin Matrix rain immediately.
+.TP
+.BI -scene-time " SECONDS"
+Begin playback at the specified movie-relative scene time.  This calibration
+option accepts fractional seconds from zero through the selected scene's
+duration.  Playback continues normally from that point.  If the drawable is
+resized, playback restarts from the requested scene time rather than from zero.
 .PP
 Scenes are authored in a canonical 640x480 coordinate system and scale
 uniformly to the target drawable.  Resizing restarts the presentation from the
-beginning of the startup scene.
+beginning of the startup scene, or from the requested
+.B -scene-time
+offset when one was supplied.
 .SH PROFILES
 .TP
 .B -profile operator1999

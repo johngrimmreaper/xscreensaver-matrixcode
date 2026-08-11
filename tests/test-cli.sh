@@ -5,6 +5,7 @@ p=${1:-./matrixcode}
 "$p" -version | grep -F 'matrixcode 0.2.0-film-rework' >/dev/null
 "$p" -help | grep -F 'operator1999' >/dev/null
 "$p" -help | grep -F 'neo-terminal' >/dev/null
+"$p" -help | grep -F 'scene-time' >/dev/null
 "$p" -self-test | grep -F 'all self-tests passed' >/dev/null
 
 # Parsing should accept profile and useful boundaries without needing X when
@@ -29,7 +30,22 @@ if "$p" -aspect 5:4 -self-test >/dev/null 2>&1; then
 fi
 
 "$p" -scene neo-terminal -self-test >/dev/null
+"$p" -scene neo-terminal -scene-time 0 -self-test >/dev/null
+"$p" -scene neo-terminal -scene-time 23.5 -self-test >/dev/null
+"$p" -scene neo-terminal -scene-time 76 -self-test >/dev/null
 "$p" -no-scene -self-test >/dev/null
 if "$p" -scene bogus -self-test >/dev/null 2>&1; then
     echo 'invalid scene unexpectedly accepted' >&2; exit 1
+fi
+if "$p" -scene neo-terminal -scene-time -0.1 -self-test >/dev/null 2>&1; then
+    echo 'negative scene time unexpectedly accepted' >&2; exit 1
+fi
+if "$p" -scene neo-terminal -scene-time 76.1 -self-test >/dev/null 2>&1; then
+    echo 'scene time beyond scene duration unexpectedly accepted' >&2; exit 1
+fi
+if "$p" -scene neo-terminal -scene-time nan -self-test >/dev/null 2>&1; then
+    echo 'non-finite scene time unexpectedly accepted' >&2; exit 1
+fi
+if "$p" -no-scene -scene-time 1 -self-test >/dev/null 2>&1; then
+    echo 'scene time without a scene unexpectedly accepted' >&2; exit 1
 fi

@@ -84,6 +84,33 @@ Select the first scene explicitly:
 ./matrixcode -window -scene neo-terminal
 ```
 
-A settled window resize restarts the entire presentation at scene time zero,
-which keeps scene geometry deterministic and consistent across XScreenSaver
-monitor windows.
+For frame calibration, jump directly to a movie-relative scene time:
+
+```sh
+./matrixcode -window -scene neo-terminal -scene-time 23
+./matrixcode -window -scene neo-terminal -scene-time 40
+./matrixcode -window -scene neo-terminal -scene-time 55
+./matrixcode -window -scene neo-terminal -scene-time 67
+```
+
+`-scene-time` accepts fractional seconds from zero through the selected scene's
+duration and then continues playback normally.  It is a calibration/debugging
+control rather than part of the normal XScreenSaver presentation.
+
+For an exact deterministic screenshot at a cue boundary:
+
+```sh
+LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a \
+  ./matrixcode -window -geometry 1280x960 \
+  -scene neo-terminal -scene-time 55 \
+  -seed 19990331 -frames 1 -no-vsync \
+  -screenshot neo-55s.ppm
+```
+
+This makes frame matching practical without waiting through the first minute of
+the scene after every visual adjustment.
+
+A settled window resize restarts the presentation clock.  Normal playback
+restarts at scene time zero; calibration playback restarts at the explicit
+`-scene-time` offset.  This keeps scene geometry deterministic and consistent
+across XScreenSaver monitor windows.

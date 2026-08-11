@@ -84,6 +84,8 @@ typedef struct options {
     int self_test;
     const char *screenshot_path;
     matrix_scene_kind startup_scene;
+    double scene_time;
+    int scene_time_set;
 } options;
 
 typedef struct cell {
@@ -205,6 +207,19 @@ static int parse_long(const char *text, long minv, long maxv, long *result)
     errno = 0;
     value = strtol(text, &end, 0);
     if (errno != 0 || end == text || *end != '\0' || value < minv || value > maxv) return 0;
+    *result = value;
+    return 1;
+}
+
+static int parse_double(const char *text, double minv, double maxv, double *result)
+{
+    char *end = NULL;
+    double value;
+    if (!text || !result) return 0;
+    errno = 0;
+    value = strtod(text, &end);
+    if (errno != 0 || end == text || *end != '\0' || !isfinite(value) ||
+        value < minv || value > maxv) return 0;
     *result = value;
     return 1;
 }
@@ -334,7 +349,8 @@ static int option_takes_value(const char *arg)
         "-cycle", "--cycle", "-glow", "--glow", "-contrast", "--contrast", "-aspect", "--aspect",
         "-curvature", "--curvature", "-scanlines", "--scanlines", "-phosphor-mask", "--phosphor-mask",
         "-vignette", "--vignette", "-persistence", "--persistence", "-overscan", "--overscan",
-        "-seed", "--seed", "-frames", "--frames", "-screenshot", "--screenshot", "-scene", "--scene"
+        "-seed", "--seed", "-frames", "--frames", "-screenshot", "--screenshot", "-scene", "--scene",
+        "-scene-time", "--scene-time"
     };
     size_t i;
     for (i = 0U; i < sizeof(names) / sizeof(names[0]); i++) if (strcmp(arg, names[i]) == 0) return 1;
@@ -350,6 +366,7 @@ static void print_usage(FILE *stream, const char *program)
         "\nXScreenSaver/window options:\n"
         "  -root | -window | -window-id ID\n"
         "  -scene neo-terminal | -no-scene startup scene (default neo-terminal)\n"
+        "  -scene-time SECONDS           start/seek scene clock for calibration\n"
         "  -geometry WxH                 preview-window size\n"
         "\nFilm geometry and rain:\n"
         "  -columns N                    logical columns, 40..240 (operator default 80)\n"
@@ -402,6 +419,9 @@ static int parse_options(int argc, char **argv, options *opts)
             if (opts->startup_scene == MATRIX_SCENE_NONE) { fprintf(stderr, "invalid scene: %s\n", value); return 0; }
         } else if (strcmp(arg, "-no-scene") == 0 || strcmp(arg, "--no-scene") == 0) {
             opts->startup_scene = MATRIX_SCENE_NONE;
+        } else if (strcmp(arg, "-scene-time") == 0 || strcmp(arg, "--scene-time") == 0) {
+            if (!parse_double(value, 0.0, 86400.0, &opts->scene_time)) { fprintf(stderr, "invalid scene time: %s\n", value); return 0; }
+            opts->scene_time_set = 1;
         } else if (strcmp(arg, "-root") == 0 || strcmp(arg, "--root") == 0) {
             opts->root_mode = 1; opts->window_mode = 0; opts->have_window_id = 0;
         } else if (strcmp(arg, "-window") == 0 || strcmp(arg, "--window") == 0) {
@@ -493,6 +513,19 @@ static int parse_options(int argc, char **argv, options *opts)
             print_usage(stdout, argv[0]); exit(EXIT_SUCCESS);
         } else {
             fprintf(stderr, "unknown option: %s\n", arg); return 0;
+        }
+    }
+    if (opts->scene_time_set) {
+        double duration;
+        if (opts->startup_scene == MATRIX_SCENE_NONE) {
+            fprintf(stderr, "-scene-time requires an enabled startup scene\n");
+            return 0;
+        }
+        duration = matrix_scene_duration(opts->startup_scene);
+        if (opts->scene_time > duration) {
+            fprintf(stderr, "scene time %.3f exceeds %s duration %.3f\n",
+                    opts->scene_time, matrix_scene_name(opts->startup_scene), duration);
+            return 0;
         }
     }
     return 1;
@@ -1004,7 +1037,10 @@ static int app_init(app *a, const options *opts)
     if (!simulation_resize(&a->sim, &a->opts, a->width, a->height)) return 0;
     if (a->opts.verbose) {
         const GLubyte *vendor = glGetString(GL_VENDOR), *renderer = glGetString(GL_RENDERER), *version = glGetString(GL_VERSION);
-        fprintf(stderr, "scene: %s\n", matrix_scene_name(a->opts.startup_scene));
+        if (a->opts.scene_time_set)
+            fprintf(stderr, "scene: %s, start time: %.3fs\n", matrix_scene_name(a->opts.startup_scene), a->opts.scene_time);
+        else
+            fprintf(stderr, "scene: %s\n", matrix_scene_name(a->opts.startup_scene));
         fprintf(stderr, "profile: %s, grid: %ux%u, cell %.2fx%.2f, content %.0fx%.0f\n",
                 profile_name(a->opts.profile), a->sim.columns, a->sim.rows, a->sim.cell_width, a->sim.cell_height,
                 a->sim.content.width, a->sim.content.height);
@@ -1099,6 +1135,7 @@ static int run_app(app *a)
 {
     double start = monotonic_seconds(), previous = start, next_frame = start;
     double frame_interval = (double)a->opts.delay_usec / 1000000.0;
+    double scene_offset = a->opts.scene_time_set ? a->opts.scene_time : 0.0;
     int screenshot_written = 0;
     while (!stop_requested) {
         double now, elapsed, delta;
@@ -1120,8 +1157,8 @@ static int run_app(app *a)
             screenshot_written = 0;
         }
         if (now < next_frame) { sleep_seconds(next_frame - now); now = monotonic_seconds(); }
-        if (a->opts.seed_set) { elapsed = (double)a->rendered_frames * frame_interval; delta = frame_interval; }
-        else { elapsed = now - start; delta = now - previous; if (delta < 0.0 || delta > 0.25) delta = frame_interval; }
+        if (a->opts.seed_set) { elapsed = scene_offset + (double)a->rendered_frames * frame_interval; delta = frame_interval; }
+        else { elapsed = scene_offset + now - start; delta = now - previous; if (delta < 0.0 || delta > 0.25) delta = frame_interval; }
         previous = now;
         if (a->opts.startup_scene != MATRIX_SCENE_NONE &&
             elapsed < matrix_scene_duration(a->opts.startup_scene)) {
