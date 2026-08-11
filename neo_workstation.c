@@ -259,62 +259,271 @@ void neo_workstation_draw_searching(float x, float y, float pixel, float alpha)
     glEnable(GL_TEXTURE_2D);
 }
 
+static void nw_recess(float x0, float y0, float x1, float y1,
+                      nw_color face)
+{
+    nw_quad(x0, y0, x1, y1, face);
+    nw_line(x0, y0, x1, y0, NW_CHROME_DARK);
+    nw_line(x0, y0, x0, y1, NW_CHROME_DARK);
+    nw_line(x1, y0, x1, y1, NW_CHROME_LIGHT);
+    nw_line(x0, y1, x1, y1, NW_CHROME_LIGHT);
+}
+
+static void nw_draw_upper_clipped(const char *text, float x, float y,
+                                  float pixel, nw_color c,
+                                  float clip_x0, float clip_x1)
+{
+    float pen = x;
+    size_t n;
+
+    glDisable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColor4f(c.r, c.g, c.b, c.a);
+    glBegin(GL_QUADS);
+
+    for (n = 0U; text && text[n] != '\0'; n++) {
+        const uint8_t *rows = nw_upper_rows(text[n]);
+        unsigned int row;
+        unsigned int col;
+
+        if (rows) {
+            for (row = 0U; row < 7U; row++) {
+                for (col = 0U; col < 5U; col++) {
+                    if ((rows[row] &
+                         (uint8_t)(1U << (4U - col))) != 0U) {
+                        float px0 = pen + (float)col * pixel;
+                        float px1 = px0 + pixel;
+                        float py0 = y + (float)row * pixel;
+                        float py1 = py0 + pixel;
+
+                        if (px1 <= clip_x0 || px0 >= clip_x1)
+                            continue;
+                        if (px0 < clip_x0) px0 = clip_x0;
+                        if (px1 > clip_x1) px1 = clip_x1;
+
+                        glVertex2f(px0, py0);
+                        glVertex2f(px1, py0);
+                        glVertex2f(px1, py1);
+                        glVertex2f(px0, py1);
+                    }
+                }
+            }
+        }
+
+        pen += pixel * 6.0F;
+    }
+
+    glEnd();
+    glEnable(GL_TEXTURE_2D);
+}
+
+enum nw_toolbar_icon_kind {
+    NW_ICON_A0 = 0,
+    NW_ICON_A1,
+    NW_ICON_B0,
+    NW_ICON_B1,
+    NW_ICON_B2,
+    NW_ICON_B3,
+    NW_ICON_C0,
+    NW_ICON_C1,
+    NW_ICON_D0,
+    NW_ICON_D1
+};
+
 static void nw_toolbar_icon(float x, float y, unsigned int kind)
 {
-    nw_color icon = NW_CHROME_DARK;
-    switch (kind % 5U) {
-    case 0U:
-        nw_quad(x + 4.0F, y + 5.0F, x + 7.0F, y + 18.0F, icon);
-        nw_quad(x + 9.0F, y + 8.0F, x + 12.0F, y + 18.0F, icon);
-        nw_quad(x + 14.0F, y + 3.0F, x + 17.0F, y + 18.0F, icon);
+    const nw_color icon = NW_CHROME_DARK;
+
+    switch (kind) {
+    case NW_ICON_A0:
+        /* Film-reference silhouette: bars with a rising diagonal. */
+        nw_quad(x + 4.0F,  y + 7.0F, x + 6.0F,  y + 18.0F, icon);
+        nw_quad(x + 8.0F,  y + 4.0F, x + 10.0F, y + 18.0F, icon);
+        nw_quad(x + 12.0F, y + 9.0F, x + 14.0F, y + 18.0F, icon);
+        nw_line(x + 8.0F, y + 5.0F, x + 18.0F, y + 17.0F, icon);
+        nw_line(x + 9.0F, y + 5.0F, x + 19.0F, y + 17.0F, icon);
         break;
-    case 1U:
-        nw_quad(x + 4.0F, y + 4.0F, x + 17.0F, y + 7.0F, icon);
-        nw_quad(x + 4.0F, y + 10.0F, x + 17.0F, y + 13.0F, icon);
-        nw_quad(x + 4.0F, y + 16.0F, x + 17.0F, y + 19.0F, icon);
+
+    case NW_ICON_A1:
+        /* Five narrow vertical bars. */
+        nw_quad(x + 3.0F,  y + 5.0F, x + 5.0F,  y + 18.0F, icon);
+        nw_quad(x + 7.0F,  y + 3.0F, x + 9.0F,  y + 18.0F, icon);
+        nw_quad(x + 11.0F, y + 6.0F, x + 13.0F, y + 18.0F, icon);
+        nw_quad(x + 15.0F, y + 4.0F, x + 17.0F, y + 18.0F, icon);
+        nw_quad(x + 19.0F, y + 7.0F, x + 21.0F, y + 18.0F, icon);
         break;
-    case 2U:
-        nw_quad(x + 9.0F, y + 3.0F, x + 12.0F, y + 19.0F, icon);
-        nw_quad(x + 3.0F, y + 9.0F, x + 18.0F, y + 12.0F, icon);
+
+    case NW_ICON_B0:
+        /* Offset geometric blocks. */
+        nw_quad(x + 4.0F,  y + 4.0F,  x + 9.0F,  y + 9.0F,  icon);
+        nw_quad(x + 13.0F, y + 3.0F,  x + 18.0F, y + 8.0F,  icon);
+        nw_quad(x + 3.0F,  y + 13.0F, x + 8.0F,  y + 18.0F, icon);
+        nw_quad(x + 11.0F, y + 11.0F, x + 19.0F, y + 18.0F, icon);
+        nw_quad(x + 8.0F,  y + 8.0F,  x + 13.0F, y + 13.0F, icon);
         break;
-    case 3U:
-        nw_quad(x + 4.0F, y + 5.0F, x + 8.0F, y + 17.0F, icon);
-        nw_quad(x + 8.0F, y + 8.0F, x + 12.0F, y + 14.0F, icon);
-        nw_quad(x + 12.0F, y + 5.0F, x + 16.0F, y + 17.0F, icon);
+
+    case NW_ICON_B1:
+        /* Four small nodes around a central diamond/cross. */
+        nw_quad(x + 9.0F,  y + 3.0F,  x + 13.0F, y + 7.0F,  icon);
+        nw_quad(x + 4.0F,  y + 8.0F,  x + 8.0F,  y + 12.0F, icon);
+        nw_quad(x + 14.0F, y + 8.0F,  x + 18.0F, y + 12.0F, icon);
+        nw_quad(x + 9.0F,  y + 13.0F, x + 13.0F, y + 17.0F, icon);
+        nw_quad(x + 9.0F,  y + 8.0F,  x + 13.0F, y + 12.0F, icon);
         break;
+
+    case NW_ICON_B2:
+        /* Broad left-facing chevron. */
+        nw_line(x + 17.0F, y + 4.0F,  x + 7.0F, y + 11.0F, icon);
+        nw_line(x + 18.0F, y + 5.0F,  x + 8.0F, y + 11.0F, icon);
+        nw_line(x + 7.0F,  y + 11.0F, x + 17.0F, y + 18.0F, icon);
+        nw_line(x + 8.0F,  y + 11.0F, x + 18.0F, y + 17.0F, icon);
+        nw_quad(x + 6.0F, y + 9.0F, x + 18.0F, y + 13.0F, icon);
+        break;
+
+    case NW_ICON_B3:
+        /* Forked/branching shape. */
+        nw_quad(x + 10.0F, y + 3.0F, x + 13.0F, y + 19.0F, icon);
+        nw_quad(x + 4.0F,  y + 8.0F, x + 19.0F, y + 11.0F, icon);
+        nw_quad(x + 4.0F,  y + 4.0F, x + 7.0F,  y + 10.0F, icon);
+        nw_quad(x + 16.0F, y + 3.0F, x + 19.0F, y + 10.0F, icon);
+        nw_quad(x + 5.0F,  y + 15.0F, x + 11.0F, y + 18.0F, icon);
+        break;
+
+    case NW_ICON_C0:
+        /* Stacked horizontal steps. */
+        nw_quad(x + 4.0F, y + 4.0F,  x + 18.0F, y + 7.0F,  icon);
+        nw_quad(x + 7.0F, y + 9.0F,  x + 18.0F, y + 12.0F, icon);
+        nw_quad(x + 4.0F, y + 14.0F, x + 18.0F, y + 17.0F, icon);
+        nw_quad(x + 4.0F, y + 4.0F,  x + 7.0F,  y + 17.0F, icon);
+        break;
+
+    case NW_ICON_C1:
+        /* Angular cup/container form. */
+        nw_quad(x + 5.0F,  y + 4.0F,  x + 8.0F,  y + 16.0F, icon);
+        nw_quad(x + 15.0F, y + 4.0F,  x + 18.0F, y + 16.0F, icon);
+        nw_quad(x + 8.0F,  y + 14.0F, x + 15.0F, y + 18.0F, icon);
+        nw_quad(x + 9.0F,  y + 8.0F,  x + 14.0F, y + 11.0F, icon);
+        break;
+
+    case NW_ICON_D0:
+        /* Up triangle over a small rectangular indicator. */
+        nw_line(x + 5.0F,  y + 11.0F, x + 11.0F, y + 4.0F, icon);
+        nw_line(x + 11.0F, y + 4.0F,  x + 18.0F, y + 11.0F, icon);
+        nw_line(x + 5.0F,  y + 11.0F, x + 18.0F, y + 11.0F, icon);
+        nw_quad(x + 8.0F, y + 15.0F, x + 15.0F, y + 18.0F, icon);
+        break;
+
+    case NW_ICON_D1:
+        /* Framed rectangular display. */
+        nw_quad(x + 4.0F, y + 4.0F, x + 19.0F, y + 18.0F, icon);
+        nw_quad(x + 7.0F, y + 7.0F, x + 16.0F, y + 15.0F, NW_CHROME);
+        nw_quad(x + 8.0F, y + 9.0F, x + 15.0F, y + 12.0F, icon);
+        break;
+
     default:
-        nw_quad(x + 5.0F, y + 5.0F, x + 16.0F, y + 16.0F, icon);
-        nw_quad(x + 8.0F, y + 8.0F, x + 13.0F, y + 13.0F, NW_CHROME);
         break;
     }
 }
 
+static void nw_draw_toolbar_button(float x, unsigned int kind)
+{
+    nw_bevel(x, 1.0F, x + 27.0F, 27.0F, NW_CHROME);
+    nw_toolbar_icon(x + 2.0F, 2.0F, kind);
+}
+
+static void nw_draw_download_activity(double t)
+{
+    const float x0 = 299.0F;
+    const float x1 = 520.0F;
+    const float y0 = 29.0F;
+    const float y1 = 49.0F;
+    const float inner_x0 = x0 + 3.0F;
+    const float inner_x1 = x1 - 3.0F;
+    const float inner_w = inner_x1 - inner_x0;
+    const float slab_w = 61.0F;
+    const float text_pixel = 1.25F;
+    const float text_w = 8.0F * 6.0F * text_pixel;
+    double cycle = fmod(t, 4.5);
+    float phase;
+    float travel;
+    float slab_x;
+    float text_x;
+
+    if (cycle < 0.0)
+        cycle += 4.5;
+    phase = (float)(cycle / 4.5);
+
+    /*
+     * Studio C reference shows a cyclic activity/marquee widget rather than a
+     * monotonic percentage bar.  The pale slab and clipped DOWNLOAD lettering
+     * traverse the recessed field and wrap every ~4.5 seconds.
+     */
+    nw_bevel(x0 - 1.0F, y0 - 1.0F, x1 + 1.0F, y1 + 1.0F, NW_CHROME);
+    nw_recess(x0, y0, x1, y1, NW_BANNER);
+
+    travel = inner_w + slab_w;
+    slab_x = inner_x0 - slab_w + phase * travel;
+    nw_quad(slab_x, y0 + 3.0F,
+            fminf(slab_x + slab_w, inner_x1),
+            y1 - 3.0F, NW_CHROME_LIGHT);
+
+    /*
+     * Keep the word moving with the trailing edge.  Drawing through a manual
+     * x clip reproduces the partial "...ad", "...load", "...ownload" states
+     * visible in the reference without relying on GL scissor coordinates.
+     */
+    text_x = slab_x + slab_w - text_w * 0.42F;
+    nw_draw_upper_clipped("DOWNLOAD", text_x, y0 + 5.0F, text_pixel,
+                          NW_BANNER_TEXT, inner_x0, inner_x1);
+}
+
 static void nw_draw_toolbar(double t)
 {
-    unsigned int i;
-    float download = nw_stage(t, 14.0, 16.0);
+    static const struct {
+        float x;
+        unsigned int icon;
+    } buttons[] = {
+        {  23.0F, NW_ICON_A0 },
+        {  51.0F, NW_ICON_A1 },
 
+        { 108.0F, NW_ICON_B0 },
+        { 136.0F, NW_ICON_B1 },
+        { 164.0F, NW_ICON_B2 },
+        { 192.0F, NW_ICON_B3 },
+
+        { 264.0F, NW_ICON_C0 },
+        { 292.0F, NW_ICON_C1 },
+
+        { 509.0F, NW_ICON_D0 },
+        { 537.0F, NW_ICON_D1 }
+    };
+    size_t i;
+
+    /*
+     * Measured from the 850x636 Studio C workstation crop and converted to the
+     * canonical 640x480 authoring space.  Keep the asymmetrical 2+4+2+2
+     * grouping: it is one of the strongest visual signatures of this UI.
+     */
     nw_quad(0.0F, 0.0F, NW_W, 58.0F, NW_CHROME_DARK);
-    nw_quad(0.0F, 7.0F, NW_W, 39.0F, NW_CHROME);
+    nw_quad(0.0F, 0.0F, NW_W, 29.0F, NW_CHROME);
 
-    for (i = 0U; i < 8U; i++) {
-        float x = 12.0F + (float)i * 31.0F;
-        nw_bevel(x, 8.0F, x + 27.0F, 35.0F, NW_CHROME);
-        nw_toolbar_icon(x + 2.0F, 9.0F, i);
-    }
+    /* Recessed rails/fields between the button islands. */
+    nw_recess( 79.0F,  8.0F, 104.0F, 20.0F, NW_DESKTOP);
+    nw_recess(220.0F,  8.0F, 260.0F, 20.0F, NW_DESKTOP);
+    nw_recess(321.0F,  8.0F, 505.0F, 20.0F, NW_DESKTOP);
+    nw_recess(568.0F,  8.0F, 639.0F, 20.0F, NW_DESKTOP);
 
-    nw_bevel(274.0F, 8.0F, 423.0F, 35.0F, NW_CHROME);
-    nw_quad(285.0F, 15.0F, 407.0F, 29.0F, NW_CHROME_LIGHT);
+    for (i = 0U; i < sizeof(buttons) / sizeof(buttons[0]); i++)
+        nw_draw_toolbar_button(buttons[i].x, buttons[i].icon);
 
-    nw_bevel(436.0F, 8.0F, 627.0F, 35.0F, NW_CHROME);
-    nw_quad(449.0F, 15.0F, 611.0F, 29.0F, NW_PAPER_ALT);
+    /* Narrow right-edge slots visible beside the final button group. */
+    nw_bevel(572.0F, 1.0F, 588.0F, 27.0F, NW_CHROME);
+    nw_recess(576.0F, 5.0F, 584.0F, 23.0F, NW_PAPER_ALT);
+    nw_bevel(594.0F, 1.0F, 613.0F, 27.0F, NW_CHROME);
+    nw_recess(600.0F, 5.0F, 606.0F, 23.0F, NW_PAPER_ALT);
 
-    if (download > 0.0F) {
-        nw_quad(370.0F, 42.0F, 565.0F, 57.0F, NW_BANNER);
-        nw_quad(370.0F, 42.0F, 370.0F + 33.0F * download,
-                57.0F, NW_CHROME_LIGHT);
-        nw_draw_upper("DOWNLOAD", 410.0F, 45.0F, 1.25F, NW_BANNER_TEXT);
-    }
+    nw_draw_download_activity(t);
 }
 
 static void nw_body_lines(float x, float y, float width,
