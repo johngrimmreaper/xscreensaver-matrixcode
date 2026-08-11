@@ -32,7 +32,7 @@ MANDIR ?= $(PREFIX)/share/man
 APPLICATIONSDIR ?= $(PREFIX)/share/applications/screensavers
 DESTDIR ?=
 
-OBJECTS = matrixcode.o glyphs.o scene.o terminal_font.o
+OBJECTS = matrixcode.o glyphs.o scene.o terminal_font.o neo_workstation.o
 
 all: matrixcode
 matrixcode: $(OBJECTS)
@@ -41,10 +41,12 @@ matrixcode.o: matrixcode.c glyphs.h scene.h compat/minigl.h
 	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(X11_CFLAGS) $(GL_CFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ matrixcode.c
 glyphs.o: glyphs.c glyphs.h
 	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ glyphs.c
-scene.o: scene.c scene.h terminal_font.h compat/minigl.h
+scene.o: scene.c scene.h neo_workstation.h terminal_font.h compat/minigl.h
 	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(GL_CFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ scene.c
 terminal_font.o: terminal_font.c terminal_font.h compat/minigl.h
 	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(GL_CFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ terminal_font.c
+neo_workstation.o: neo_workstation.c neo_workstation.h compat/minigl.h
+	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(GL_CFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ neo_workstation.c
 check: matrixcode
 	./matrixcode -self-test
 	./tests/test-cli.sh ./matrixcode

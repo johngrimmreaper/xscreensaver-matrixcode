@@ -15,6 +15,89 @@ The distinction is deliberate:
 - **scene:** preserve photographed composition;
 - **rain:** preserve apparent glyph scale while filling the available display.
 
+## `neo-trace` prototype
+
+`neo-trace` is a standalone calibration scene for the transition that will
+eventually precede `neo-terminal`.
+
+The trace-program opening remains a clean-room MatrixCode invention inspired by
+the screenplay's telephone-origin acquisition. The transition that follows is
+based more closely on final-film reference frames: an aperture fills the view,
+the image drops almost to black, a tiled green phosphor tunnel appears, the
+tunnel overexposes, and the dark opening resolves into the counter (enclosed
+negative space) of the lowercase `a` in `Searching...`.
+
+The scene recreates the visual grammar rather than embedding film frames or
+extracted artwork:
+
+```text
+ 0.0 ->  5.5  racing trace columns and progressive numeric lock
+ 5.5 ->  7.0  camera push toward an abstract circular aperture
+ 7.0 ->  7.8  near-black transition beat
+ 7.8 -> 10.2  accelerating tiled phosphor tunnel
+10.2 -> 10.9  severe green-white phosphor bloom
+10.9 -> 12.8  tunnel resolves through the counter of lowercase `a`;
+              camera pulls back to reveal `Searching...`
+12.8 -> 14.0  current Morpheus-search landing display
+```
+
+Calibration checkpoints:
+
+```sh
+./matrixcode -window -scene neo-trace -scene-time 5.5
+./matrixcode -window -scene neo-trace -scene-time 7.4
+./matrixcode -window -scene neo-trace -scene-time 8.5
+./matrixcode -window -scene neo-trace -scene-time 10.5
+./matrixcode -window -scene neo-trace -scene-time 11.5
+./matrixcode -window -scene neo-trace -scene-time 12.8
+```
+
+The `Searching...` reveal uses a small scene-local mixed-case bitmap alphabet so
+the experimental transition does not change the already-calibrated takeover
+message typography. Final timing, tunnel perspective, phosphor intensity and
+the search-workstation layout remain subject to calibration against the
+reference frames.
+
+
+## Neo workstation visual language
+
+The search display is intentionally **not** Matrix rain rendered inside a fake
+window. It is treated as its own fictional late-1990s workstation environment,
+derived from final-film visual references but implemented from clean-room
+primitives.
+
+The first workstation pass uses this dedicated palette:
+
+```text
+desktop / deep chrome   dark olive-charcoal
+window chrome           muted gray-green
+highlight edges         pale cyan-green
+document paper          pale cyan-gray
+normal editorial text   near-black
+GLOBAL SEARCH banner    charcoal with pale lettering
+Searching... box        very dark green
+Searching... text       luminous phosphor green
+photo/result imagery    high-contrast monochrome
+```
+
+The workstation renderer lives in `neo_workstation.c` rather than `scene.c`.
+It owns the toolbar, beveled widgets, document cards, search overlay, clean-room
+Morpheus silhouette, newspaper-like body texture and result choreography.
+
+The current search timeline gradually layers:
+
+```text
+ 0 ->  4 s   workstation chrome + GLOBAL SEARCH
+ 3 -> 10 s   Heathrow article enters and settles
+ 7 -> 14 s   monochrome Morpheus result panel enters
+14 -> 21 s   international/An-Nahar-inspired result overlays the article
+14 -> 23 s   Download activity appears while Searching... remains top-most
+```
+
+These durations are deliberately stretched across the existing 23-second
+calibration window. Once the final scene timing is locked, the same renderer can
+be retimed without changing its visual components.
+
 ## `neo-terminal`
 
 The first scene is the computer takeover sequence near the beginning of the

@@ -18,6 +18,14 @@ new drawable is filled immediately at the same logical composition.
 Play the Neo terminal takeover recreation before entering Matrix rain.  This is
 the default.
 .TP
+.B -scene neo-trace
+Play the experimental clean-room trace/tunnel prelude. Racing numeric columns
+progressively lock onto a ten-digit origin, the camera enters an abstract
+aperture, crosses a tiled phosphor tunnel, and pulls back through the counter of
+the lowercase `a' in `Searching...' before revealing the Morpheus-search
+display. This scene is a calibration prototype and is not yet in the default
+sequence.
+.TP
 .B -no-scene
 Skip the startup scene and begin Matrix rain immediately.
 .TP

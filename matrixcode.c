@@ -365,7 +365,7 @@ static void print_usage(FILE *stream, const char *program)
         "  -profile operator1999|opening1999|clean  visual preset (default operator1999)\n"
         "\nXScreenSaver/window options:\n"
         "  -root | -window | -window-id ID\n"
-        "  -scene neo-terminal | -no-scene startup scene (default neo-terminal)\n"
+        "  -scene neo-terminal|neo-trace | -no-scene startup scene (default neo-terminal)\n"
         "  -scene-time SECONDS           start/seek scene clock for calibration\n"
         "  -geometry WxH                 preview-window size\n"
         "\nFilm geometry and rain:\n"

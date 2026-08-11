@@ -30,6 +30,7 @@ if "$p" -aspect 5:4 -self-test >/dev/null 2>&1; then
 fi
 
 "$p" -scene neo-terminal -self-test >/dev/null
+"$p" -scene neo-trace -scene-time 8.5 -self-test >/dev/null
 "$p" -scene neo-terminal -scene-time 0 -self-test >/dev/null
 "$p" -scene neo-terminal -scene-time 23.5 -self-test >/dev/null
 "$p" -scene neo-terminal -scene-time 76 -self-test >/dev/null

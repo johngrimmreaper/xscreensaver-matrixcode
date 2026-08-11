@@ -3,7 +3,8 @@
 
 typedef enum matrix_scene_kind {
     MATRIX_SCENE_NONE = 0,
-    MATRIX_SCENE_NEO_TERMINAL
+    MATRIX_SCENE_NEO_TERMINAL,
+    MATRIX_SCENE_NEO_TRACE
 } matrix_scene_kind;
 
 typedef enum matrix_scene_result {
