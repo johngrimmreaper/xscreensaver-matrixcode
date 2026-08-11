@@ -1,0 +1,465 @@
+{
+  "schema_version": 1,
+  "reference": {
+    "id": "studioc-web06-ap01",
+    "role": "geometry-only-secondary-reference",
+    "source_crop": "850x636 neo-workstation panel",
+    "normalization": {
+      "button_local_width": 24,
+      "button_local_height": 20,
+      "note": "Coordinates are clean-room vector measurements derived from the reference image; no bitmap art is stored."
+    }
+  },
+  "toolbar": {
+    "groups": [
+      {
+        "id": "A",
+        "count": 2
+      },
+      {
+        "id": "B",
+        "count": 4
+      },
+      {
+        "id": "C",
+        "count": 2
+      },
+      {
+        "id": "D",
+        "count": 2
+      }
+    ],
+    "icons": {
+      "A0": {
+        "description": "two vertical bars plus lower-right wedge",
+        "primitives": [
+          {
+            "type": "rect",
+            "x0": 1,
+            "y0": 0,
+            "x1": 4,
+            "y1": 19
+          },
+          {
+            "type": "rect",
+            "x0": 8,
+            "y0": 5,
+            "x1": 10,
+            "y1": 19
+          },
+          {
+            "type": "rect",
+            "x0": 15,
+            "y0": 10,
+            "x1": 18,
+            "y1": 19
+          },
+          {
+            "type": "triangle",
+            "points": [
+              [
+                15,
+                10
+              ],
+              [
+                22,
+                19
+              ],
+              [
+                22,
+                14
+              ]
+            ]
+          }
+        ]
+      },
+      "A1": {
+        "description": "four vertical bars",
+        "primitives": [
+          {
+            "type": "rect",
+            "x0": 2,
+            "y0": 0,
+            "x1": 5,
+            "y1": 19
+          },
+          {
+            "type": "rect",
+            "x0": 8,
+            "y0": 0,
+            "x1": 11,
+            "y1": 19
+          },
+          {
+            "type": "rect",
+            "x0": 14,
+            "y0": 0,
+            "x1": 17,
+            "y1": 19
+          },
+          {
+            "type": "rect",
+            "x0": 20,
+            "y0": 0,
+            "x1": 23,
+            "y1": 19
+          }
+        ]
+      },
+      "B0": {
+        "description": "B/H-like double chamber",
+        "primitives": [
+          {
+            "type": "rect",
+            "x0": 1,
+            "y0": 0,
+            "x1": 5,
+            "y1": 19
+          },
+          {
+            "type": "rect",
+            "x0": 9,
+            "y0": 0,
+            "x1": 23,
+            "y1": 7
+          },
+          {
+            "type": "cutout",
+            "x0": 13,
+            "y0": 1,
+            "x1": 20,
+            "y1": 5
+          },
+          {
+            "type": "rect",
+            "x0": 9,
+            "y0": 12,
+            "x1": 23,
+            "y1": 19
+          },
+          {
+            "type": "cutout",
+            "x0": 13,
+            "y0": 14,
+            "x1": 20,
+            "y1": 18
+          }
+        ]
+      },
+      "B1": {
+        "description": "two upper nodes and three lower bars",
+        "primitives": [
+          {
+            "type": "rect",
+            "x0": 5,
+            "y0": 4,
+            "x1": 8,
+            "y1": 8
+          },
+          {
+            "type": "rect",
+            "x0": 13,
+            "y0": 5,
+            "x1": 16,
+            "y1": 8
+          },
+          {
+            "type": "rect",
+            "x0": 0,
+            "y0": 12,
+            "x1": 4,
+            "y1": 19
+          },
+          {
+            "type": "rect",
+            "x0": 8,
+            "y0": 12,
+            "x1": 12,
+            "y1": 19
+          },
+          {
+            "type": "rect",
+            "x0": 17,
+            "y0": 12,
+            "x1": 21,
+            "y1": 19
+          }
+        ]
+      },
+      "B2": {
+        "description": "large left-pointing wedge plus two small left blocks",
+        "primitives": [
+          {
+            "type": "triangle",
+            "points": [
+              [
+                12,
+                9
+              ],
+              [
+                23,
+                0
+              ],
+              [
+                23,
+                18
+              ]
+            ]
+          },
+          {
+            "type": "rect",
+            "x0": 2,
+            "y0": 6,
+            "x1": 6,
+            "y1": 11
+          },
+          {
+            "type": "rect",
+            "x0": 2,
+            "y0": 16,
+            "x1": 4,
+            "y1": 19
+          }
+        ]
+      },
+      "B3": {
+        "description": "central cross with two upper corner nodes",
+        "primitives": [
+          {
+            "type": "rect",
+            "x0": 11,
+            "y0": 0,
+            "x1": 14,
+            "y1": 19
+          },
+          {
+            "type": "rect",
+            "x0": 3,
+            "y0": 11,
+            "x1": 23,
+            "y1": 14
+          },
+          {
+            "type": "rect",
+            "x0": 2,
+            "y0": 0,
+            "x1": 4,
+            "y1": 3
+          },
+          {
+            "type": "rect",
+            "x0": 20,
+            "y0": 0,
+            "x1": 22,
+            "y1": 3
+          }
+        ]
+      },
+      "C0": {
+        "description": "opposed comb / stacked rail geometry",
+        "primitives": [
+          {
+            "type": "rect",
+            "x0": 8,
+            "y0": 0,
+            "x1": 15,
+            "y1": 19
+          },
+          {
+            "type": "rect",
+            "x0": 2,
+            "y0": 0,
+            "x1": 22,
+            "y1": 3
+          },
+          {
+            "type": "rect",
+            "x0": 2,
+            "y0": 5,
+            "x1": 22,
+            "y1": 7
+          },
+          {
+            "type": "rect",
+            "x0": 2,
+            "y0": 11,
+            "x1": 22,
+            "y1": 13
+          },
+          {
+            "type": "rect",
+            "x0": 2,
+            "y0": 16,
+            "x1": 22,
+            "y1": 19
+          }
+        ]
+      },
+      "C1": {
+        "description": "U-shaped frame with diagonal sail/wedge",
+        "trace_note": "The unusual interior shape is a diagonal triangular sail/wedge inside a U-frame; it is not a cup/container icon.",
+        "primitives": [
+          {
+            "type": "rect",
+            "x0": 1,
+            "y0": 0,
+            "x1": 4,
+            "y1": 19
+          },
+          {
+            "type": "rect",
+            "x0": 19,
+            "y0": 0,
+            "x1": 22,
+            "y1": 19
+          },
+          {
+            "type": "rect",
+            "x0": 3,
+            "y0": 16,
+            "x1": 20,
+            "y1": 19
+          },
+          {
+            "type": "triangle",
+            "points": [
+              [
+                9,
+                0
+              ],
+              [
+                6,
+                9
+              ],
+              [
+                16,
+                9
+              ]
+            ]
+          }
+        ]
+      },
+      "D0": {
+        "description": "large upward triangle with small lower square",
+        "primitives": [
+          {
+            "type": "triangle",
+            "points": [
+              [
+                12,
+                0
+              ],
+              [
+                2,
+                9
+              ],
+              [
+                22,
+                9
+              ]
+            ]
+          },
+          {
+            "type": "rect",
+            "x0": 10,
+            "y0": 14,
+            "x1": 15,
+            "y1": 18
+          }
+        ]
+      },
+      "D1": {
+        "description": "dark rectangular frame with two horizontal cutouts",
+        "primitives": [
+          {
+            "type": "rect",
+            "x0": 1,
+            "y0": 1,
+            "x1": 23,
+            "y1": 19
+          },
+          {
+            "type": "cutout",
+            "x0": 6,
+            "y0": 5,
+            "x1": 19,
+            "y1": 9
+          },
+          {
+            "type": "cutout",
+            "x0": 6,
+            "y0": 13,
+            "x1": 19,
+            "y1": 17
+          }
+        ]
+      }
+    }
+  },
+  "activity_bar": {
+    "film_mode_text": "Download",
+    "studio_c_reference_text": "Download",
+    "render_text_in_film_mode": true,
+    "clip_to_inner_container": true,
+    "text_motion": "stationary",
+    "fill_motion": "linear-left-to-right",
+    "fill_layering": "opaque-over-text",
+    "estimated_period_seconds": 2.3,
+    "period_status": "provisional-frame-measured",
+    "palette_source": "matrix1999-bluray"
+  },
+  "palette": {
+    "source": "matrix1999-bluray",
+    "status": "measured-from-film-reference",
+    "colors": {
+      "chrome_face": {
+        "rgb8": [
+          59,
+          124,
+          110
+        ],
+        "hex": "#3B7C6E"
+      },
+      "chrome_highlight": {
+        "rgb8": [
+          62,
+          127,
+          111
+        ],
+        "hex": "#3E7F6F"
+      },
+      "chrome_deep_shadow": {
+        "rgb8": [
+          14,
+          49,
+          35
+        ],
+        "hex": "#0E3123"
+      },
+      "download_field": {
+        "rgb8": [
+          11,
+          42,
+          32
+        ],
+        "hex": "#0B2A20"
+      },
+      "download_text": {
+        "rgb8": [
+          72,
+          139,
+          125
+        ],
+        "hex": "#488B7D"
+      },
+      "progress_fill": {
+        "rgb8": [
+          113,
+          205,
+          200
+        ],
+        "hex": "#71CDC8"
+      }
+    }
+  }
+}

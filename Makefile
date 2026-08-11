@@ -32,9 +32,16 @@ MANDIR ?= $(PREFIX)/share/man
 APPLICATIONSDIR ?= $(PREFIX)/share/applications/screensavers
 DESTDIR ?=
 
-OBJECTS = matrixcode.o glyphs.o scene.o terminal_font.o neo_workstation.o
+NEWS_DATA = data/neo-workstation/search-results.json
+NEWS_GENERATOR = tools/generate-neo-news.py
+NEWS_GENERATED = generated/neo_news_seed.h
+
+OBJECTS = matrixcode.o glyphs.o scene.o terminal_font.o neo_news.o neo_document.o neo_workstation.o
 
 all: matrixcode
+$(NEWS_GENERATED): $(NEWS_DATA) $(NEWS_GENERATOR) neo_news.h
+	mkdir -p generated
+	$(PYTHON) $(NEWS_GENERATOR) $(NEWS_DATA) $(NEWS_GENERATED)
 matrixcode: $(OBJECTS)
 	$(CC) $(CFLAGS) $(WARNINGS) -o $@ $(OBJECTS) $(LDFLAGS) $(X11_LIBS) $(GL_LIBS) -lm
 matrixcode.o: matrixcode.c glyphs.h scene.h compat/minigl.h
@@ -45,7 +52,11 @@ scene.o: scene.c scene.h neo_workstation.h terminal_font.h compat/minigl.h
 	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(GL_CFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ scene.c
 terminal_font.o: terminal_font.c terminal_font.h compat/minigl.h
 	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(GL_CFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ terminal_font.c
-neo_workstation.o: neo_workstation.c neo_workstation.h compat/minigl.h
+neo_news.o: neo_news.c neo_news.h $(NEWS_GENERATED)
+	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ neo_news.c
+neo_document.o: neo_document.c neo_document.h neo_news.h
+	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ neo_document.c
+neo_workstation.o: neo_workstation.c neo_workstation.h neo_news.h neo_document.h compat/minigl.h
 	$(CC) $(CPPFLAGS) $(PROJECT_CPPFLAGS) $(GL_CFLAGS) $(CFLAGS) $(WARNINGS) -c -o $@ neo_workstation.c
 check: matrixcode
 	./matrixcode -self-test
@@ -61,5 +72,5 @@ install: matrixcode
 	install -D -m 0644 matrixcode.6x $(DESTDIR)$(MANDIR)/man6/matrixcode.6x
 	install -D -m 0644 matrixcode.desktop $(DESTDIR)$(APPLICATIONSDIR)/matrixcode.desktop
 clean:
-	rm -f matrixcode $(OBJECTS) tests/*.ppm docs/*.ppm
+	rm -f matrixcode $(OBJECTS) $(NEWS_GENERATED) tests/*.ppm docs/*.ppm
 .PHONY: all check check-sanitize install clean

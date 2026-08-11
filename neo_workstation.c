@@ -1,4 +1,6 @@
 #include "neo_workstation.h"
+#include "neo_news.h"
+#include "neo_document.h"
 
 #if defined(MATRIXCODE_USE_MINIMAL_GL_HEADERS)
 # include "compat/minigl.h"
@@ -23,14 +25,20 @@ typedef struct nw_glyph {
 } nw_glyph;
 
 static const nw_color NW_DESKTOP      = { 0.055F, 0.075F, 0.058F, 1.0F };
-static const nw_color NW_CHROME       = { 0.34F,  0.42F,  0.35F,  1.0F };
-static const nw_color NW_CHROME_LIGHT = { 0.62F,  0.73F,  0.67F,  1.0F };
-static const nw_color NW_CHROME_DARK  = { 0.10F,  0.15F,  0.11F,  1.0F };
+/*
+ * Workstation chrome palette measured from the 1999 Blu-ray reference.
+ * Geometry remains sourced from the clean front-facing Studio C reference;
+ * these colors deliberately preserve the final film's teal/cyan CRT look.
+ */
+static const nw_color NW_CHROME       = { 0.231F, 0.486F, 0.431F, 1.0F };
+static const nw_color NW_CHROME_LIGHT = { 0.243F, 0.498F, 0.435F, 1.0F };
+static const nw_color NW_CHROME_DARK  = { 0.055F, 0.192F, 0.137F, 1.0F };
 static const nw_color NW_PAPER        = { 0.72F,  0.84F,  0.80F,  1.0F };
 static const nw_color NW_PAPER_ALT    = { 0.63F,  0.76F,  0.71F,  1.0F };
 static const nw_color NW_INK          = { 0.018F, 0.025F, 0.020F, 1.0F };
-static const nw_color NW_BANNER       = { 0.025F, 0.038F, 0.028F, 1.0F };
-static const nw_color NW_BANNER_TEXT  = { 0.78F,  0.88F,  0.82F,  1.0F };
+static const nw_color NW_BANNER       = { 0.043F, 0.165F, 0.125F, 1.0F };
+static const nw_color NW_BANNER_TEXT  = { 0.282F, 0.545F, 0.490F, 1.0F };
+static const nw_color NW_PROGRESS_FILL= { 0.443F, 0.804F, 0.784F, 1.0F };
 static const nw_color NW_SEARCH_BG    = { 0.010F, 0.055F, 0.018F, 0.97F };
 static const nw_color NW_SEARCH_EDGE  = { 0.10F,  0.67F,  0.20F,  0.90F };
 static const nw_color NW_SEARCH_TEXT  = { 0.24F,  1.00F,  0.34F,  0.96F };
@@ -269,51 +277,19 @@ static void nw_recess(float x0, float y0, float x1, float y1,
     nw_line(x0, y1, x1, y1, NW_CHROME_LIGHT);
 }
 
-static void nw_draw_upper_clipped(const char *text, float x, float y,
-                                  float pixel, nw_color c,
-                                  float clip_x0, float clip_x1)
+static void nw_triangle(float x0, float y0,
+                        float x1, float y1,
+                        float x2, float y2,
+                        nw_color c)
 {
-    float pen = x;
-    size_t n;
-
     glDisable(GL_TEXTURE_2D);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glColor4f(c.r, c.g, c.b, c.a);
-    glBegin(GL_QUADS);
-
-    for (n = 0U; text && text[n] != '\0'; n++) {
-        const uint8_t *rows = nw_upper_rows(text[n]);
-        unsigned int row;
-        unsigned int col;
-
-        if (rows) {
-            for (row = 0U; row < 7U; row++) {
-                for (col = 0U; col < 5U; col++) {
-                    if ((rows[row] &
-                         (uint8_t)(1U << (4U - col))) != 0U) {
-                        float px0 = pen + (float)col * pixel;
-                        float px1 = px0 + pixel;
-                        float py0 = y + (float)row * pixel;
-                        float py1 = py0 + pixel;
-
-                        if (px1 <= clip_x0 || px0 >= clip_x1)
-                            continue;
-                        if (px0 < clip_x0) px0 = clip_x0;
-                        if (px1 > clip_x1) px1 = clip_x1;
-
-                        glVertex2f(px0, py0);
-                        glVertex2f(px1, py0);
-                        glVertex2f(px1, py1);
-                        glVertex2f(px0, py1);
-                    }
-                }
-            }
-        }
-
-        pen += pixel * 6.0F;
-    }
-
+    glBegin(GL_TRIANGLES);
+    glVertex2f(x0, y0);
+    glVertex2f(x1, y1);
+    glVertex2f(x2, y2);
     glEnd();
     glEnable(GL_TEXTURE_2D);
 }
@@ -335,90 +311,91 @@ static void nw_toolbar_icon(float x, float y, unsigned int kind)
 {
     const nw_color icon = NW_CHROME_DARK;
 
+    /*
+     * Clean-room vector traces measured from the Studio C reference.
+     * Coordinates are local to a ~24x20 icon field and preserve the fictional
+     * geometry without assigning invented semantics.
+     */
     switch (kind) {
     case NW_ICON_A0:
-        /* Film-reference silhouette: bars with a rising diagonal. */
-        nw_quad(x + 4.0F,  y + 7.0F, x + 6.0F,  y + 18.0F, icon);
-        nw_quad(x + 8.0F,  y + 4.0F, x + 10.0F, y + 18.0F, icon);
-        nw_quad(x + 12.0F, y + 9.0F, x + 14.0F, y + 18.0F, icon);
-        nw_line(x + 8.0F, y + 5.0F, x + 18.0F, y + 17.0F, icon);
-        nw_line(x + 9.0F, y + 5.0F, x + 19.0F, y + 17.0F, icon);
+        nw_quad(x + 1.0F, y + 0.0F, x + 4.0F, y + 19.0F, icon);
+        nw_quad(x + 8.0F, y + 5.0F, x + 10.0F, y + 19.0F, icon);
+        nw_quad(x + 15.0F, y + 10.0F, x + 18.0F, y + 19.0F, icon);
+        nw_triangle(x + 15.0F, y + 10.0F,
+                    x + 22.0F, y + 19.0F,
+                    x + 22.0F, y + 14.0F, icon);
         break;
 
     case NW_ICON_A1:
-        /* Five narrow vertical bars. */
-        nw_quad(x + 3.0F,  y + 5.0F, x + 5.0F,  y + 18.0F, icon);
-        nw_quad(x + 7.0F,  y + 3.0F, x + 9.0F,  y + 18.0F, icon);
-        nw_quad(x + 11.0F, y + 6.0F, x + 13.0F, y + 18.0F, icon);
-        nw_quad(x + 15.0F, y + 4.0F, x + 17.0F, y + 18.0F, icon);
-        nw_quad(x + 19.0F, y + 7.0F, x + 21.0F, y + 18.0F, icon);
+        nw_quad(x + 2.0F, y + 0.0F, x + 5.0F, y + 19.0F, icon);
+        nw_quad(x + 8.0F, y + 0.0F, x + 11.0F, y + 19.0F, icon);
+        nw_quad(x + 14.0F, y + 0.0F, x + 17.0F, y + 19.0F, icon);
+        nw_quad(x + 20.0F, y + 0.0F, x + 23.0F, y + 19.0F, icon);
         break;
 
     case NW_ICON_B0:
-        /* Offset geometric blocks. */
-        nw_quad(x + 4.0F,  y + 4.0F,  x + 9.0F,  y + 9.0F,  icon);
-        nw_quad(x + 13.0F, y + 3.0F,  x + 18.0F, y + 8.0F,  icon);
-        nw_quad(x + 3.0F,  y + 13.0F, x + 8.0F,  y + 18.0F, icon);
-        nw_quad(x + 11.0F, y + 11.0F, x + 19.0F, y + 18.0F, icon);
-        nw_quad(x + 8.0F,  y + 8.0F,  x + 13.0F, y + 13.0F, icon);
+        nw_quad(x + 1.0F, y + 0.0F, x + 5.0F, y + 19.0F, icon);
+        nw_quad(x + 9.0F, y + 0.0F, x + 23.0F, y + 7.0F, icon);
+        nw_quad(x + 13.0F, y + 1.0F, x + 20.0F, y + 5.0F, NW_CHROME);
+        nw_quad(x + 9.0F, y + 12.0F, x + 23.0F, y + 19.0F, icon);
+        nw_quad(x + 13.0F, y + 14.0F, x + 20.0F, y + 18.0F, NW_CHROME);
         break;
 
     case NW_ICON_B1:
-        /* Four small nodes around a central diamond/cross. */
-        nw_quad(x + 9.0F,  y + 3.0F,  x + 13.0F, y + 7.0F,  icon);
-        nw_quad(x + 4.0F,  y + 8.0F,  x + 8.0F,  y + 12.0F, icon);
-        nw_quad(x + 14.0F, y + 8.0F,  x + 18.0F, y + 12.0F, icon);
-        nw_quad(x + 9.0F,  y + 13.0F, x + 13.0F, y + 17.0F, icon);
-        nw_quad(x + 9.0F,  y + 8.0F,  x + 13.0F, y + 12.0F, icon);
+        nw_quad(x + 5.0F, y + 4.0F, x + 8.0F, y + 8.0F, icon);
+        nw_quad(x + 13.0F, y + 5.0F, x + 16.0F, y + 8.0F, icon);
+        nw_quad(x + 0.0F, y + 12.0F, x + 4.0F, y + 19.0F, icon);
+        nw_quad(x + 8.0F, y + 12.0F, x + 12.0F, y + 19.0F, icon);
+        nw_quad(x + 17.0F, y + 12.0F, x + 21.0F, y + 19.0F, icon);
         break;
 
     case NW_ICON_B2:
-        /* Broad left-facing chevron. */
-        nw_line(x + 17.0F, y + 4.0F,  x + 7.0F, y + 11.0F, icon);
-        nw_line(x + 18.0F, y + 5.0F,  x + 8.0F, y + 11.0F, icon);
-        nw_line(x + 7.0F,  y + 11.0F, x + 17.0F, y + 18.0F, icon);
-        nw_line(x + 8.0F,  y + 11.0F, x + 18.0F, y + 17.0F, icon);
-        nw_quad(x + 6.0F, y + 9.0F, x + 18.0F, y + 13.0F, icon);
+        nw_triangle(x + 12.0F, y + 9.0F,
+                    x + 23.0F, y + 0.0F,
+                    x + 23.0F, y + 18.0F, icon);
+        nw_quad(x + 2.0F, y + 6.0F, x + 6.0F, y + 11.0F, icon);
+        nw_quad(x + 2.0F, y + 16.0F, x + 4.0F, y + 19.0F, icon);
         break;
 
     case NW_ICON_B3:
-        /* Forked/branching shape. */
-        nw_quad(x + 10.0F, y + 3.0F, x + 13.0F, y + 19.0F, icon);
-        nw_quad(x + 4.0F,  y + 8.0F, x + 19.0F, y + 11.0F, icon);
-        nw_quad(x + 4.0F,  y + 4.0F, x + 7.0F,  y + 10.0F, icon);
-        nw_quad(x + 16.0F, y + 3.0F, x + 19.0F, y + 10.0F, icon);
-        nw_quad(x + 5.0F,  y + 15.0F, x + 11.0F, y + 18.0F, icon);
+        nw_quad(x + 11.0F, y + 0.0F, x + 14.0F, y + 19.0F, icon);
+        nw_quad(x + 3.0F, y + 11.0F, x + 23.0F, y + 14.0F, icon);
+        nw_quad(x + 2.0F, y + 0.0F, x + 4.0F, y + 3.0F, icon);
+        nw_quad(x + 20.0F, y + 0.0F, x + 22.0F, y + 3.0F, icon);
         break;
 
     case NW_ICON_C0:
-        /* Stacked horizontal steps. */
-        nw_quad(x + 4.0F, y + 4.0F,  x + 18.0F, y + 7.0F,  icon);
-        nw_quad(x + 7.0F, y + 9.0F,  x + 18.0F, y + 12.0F, icon);
-        nw_quad(x + 4.0F, y + 14.0F, x + 18.0F, y + 17.0F, icon);
-        nw_quad(x + 4.0F, y + 4.0F,  x + 7.0F,  y + 17.0F, icon);
+        nw_quad(x + 8.0F, y + 0.0F, x + 15.0F, y + 19.0F, icon);
+        nw_quad(x + 2.0F, y + 0.0F, x + 22.0F, y + 3.0F, icon);
+        nw_quad(x + 2.0F, y + 5.0F, x + 22.0F, y + 7.0F, icon);
+        nw_quad(x + 2.0F, y + 11.0F, x + 22.0F, y + 13.0F, icon);
+        nw_quad(x + 2.0F, y + 16.0F, x + 22.0F, y + 19.0F, icon);
         break;
 
     case NW_ICON_C1:
-        /* Angular cup/container form. */
-        nw_quad(x + 5.0F,  y + 4.0F,  x + 8.0F,  y + 16.0F, icon);
-        nw_quad(x + 15.0F, y + 4.0F,  x + 18.0F, y + 16.0F, icon);
-        nw_quad(x + 8.0F,  y + 14.0F, x + 15.0F, y + 18.0F, icon);
-        nw_quad(x + 9.0F,  y + 8.0F,  x + 14.0F, y + 11.0F, icon);
+        /*
+         * Reference trace: U-frame containing a diagonal triangular sail.
+         * This is the weird film glyph; it is not a conventional container.
+         */
+        nw_quad(x + 1.0F, y + 0.0F, x + 4.0F, y + 19.0F, icon);
+        nw_quad(x + 19.0F, y + 0.0F, x + 22.0F, y + 19.0F, icon);
+        nw_quad(x + 3.0F, y + 16.0F, x + 20.0F, y + 19.0F, icon);
+        nw_triangle(x + 9.0F, y + 0.0F,
+                    x + 6.0F, y + 9.0F,
+                    x + 16.0F, y + 9.0F, icon);
         break;
 
     case NW_ICON_D0:
-        /* Up triangle over a small rectangular indicator. */
-        nw_line(x + 5.0F,  y + 11.0F, x + 11.0F, y + 4.0F, icon);
-        nw_line(x + 11.0F, y + 4.0F,  x + 18.0F, y + 11.0F, icon);
-        nw_line(x + 5.0F,  y + 11.0F, x + 18.0F, y + 11.0F, icon);
-        nw_quad(x + 8.0F, y + 15.0F, x + 15.0F, y + 18.0F, icon);
+        nw_triangle(x + 12.0F, y + 0.0F,
+                    x + 2.0F, y + 9.0F,
+                    x + 22.0F, y + 9.0F, icon);
+        nw_quad(x + 10.0F, y + 14.0F, x + 15.0F, y + 18.0F, icon);
         break;
 
     case NW_ICON_D1:
-        /* Framed rectangular display. */
-        nw_quad(x + 4.0F, y + 4.0F, x + 19.0F, y + 18.0F, icon);
-        nw_quad(x + 7.0F, y + 7.0F, x + 16.0F, y + 15.0F, NW_CHROME);
-        nw_quad(x + 8.0F, y + 9.0F, x + 15.0F, y + 12.0F, icon);
+        nw_quad(x + 1.0F, y + 1.0F, x + 23.0F, y + 19.0F, icon);
+        nw_quad(x + 6.0F, y + 5.0F, x + 19.0F, y + 9.0F, NW_CHROME);
+        nw_quad(x + 6.0F, y + 13.0F, x + 19.0F, y + 17.0F, NW_CHROME);
         break;
 
     default:
@@ -440,42 +417,42 @@ static void nw_draw_download_activity(double t)
     const float y1 = 49.0F;
     const float inner_x0 = x0 + 3.0F;
     const float inner_x1 = x1 - 3.0F;
+    const float inner_y0 = y0 + 3.0F;
+    const float inner_y1 = y1 - 3.0F;
     const float inner_w = inner_x1 - inner_x0;
-    const float slab_w = 61.0F;
-    const float text_pixel = 1.25F;
-    const float text_w = 8.0F * 6.0F * text_pixel;
-    double cycle = fmod(t, 4.5);
-    float phase;
-    float travel;
-    float slab_x;
-    float text_x;
+    const double period = 2.30;
+    double cycle = fmod(t, period);
+    float progress;
 
     if (cycle < 0.0)
-        cycle += 4.5;
-    phase = (float)(cycle / 4.5);
+        cycle += period;
+    progress = (float)(cycle / period);
 
     /*
-     * Studio C reference shows a cyclic activity/marquee widget rather than a
-     * monotonic percentage bar.  The pale slab and clipped DOWNLOAD lettering
-     * traverse the recessed field and wrap every ~4.5 seconds.
+     * 1999 final-film behavior:
+     *
+     *   1. "Download" is stationary in the dark recessed field.
+     *   2. A pale cyan progress fill grows linearly from left to right.
+     *   3. The fill is opaque and is drawn after the text, so it progressively
+     *      overwrites the word as it advances.
+     *   4. At the end of the cycle the field resets and starts again.
+     *
+     * The 2.30 s period is the current frame-measured estimate from the native
+     * 23.976 fps Blu-ray sequence and can be refined independently later.
      */
     nw_bevel(x0 - 1.0F, y0 - 1.0F, x1 + 1.0F, y1 + 1.0F, NW_CHROME);
     nw_recess(x0, y0, x1, y1, NW_BANNER);
 
-    travel = inner_w + slab_w;
-    slab_x = inner_x0 - slab_w + phase * travel;
-    nw_quad(slab_x, y0 + 3.0F,
-            fminf(slab_x + slab_w, inner_x1),
-            y1 - 3.0F, NW_CHROME_LIGHT);
+    /* Fixed label underneath the progress fill. */
+    nw_draw_upper("DOWNLOAD", x0 + 36.0F, y0 + 5.0F,
+                  1.25F, NW_BANNER_TEXT);
 
-    /*
-     * Keep the word moving with the trailing edge.  Drawing through a manual
-     * x clip reproduces the partial "...ad", "...load", "...ownload" states
-     * visible in the reference without relying on GL scissor coordinates.
-     */
-    text_x = slab_x + slab_w - text_w * 0.42F;
-    nw_draw_upper_clipped("DOWNLOAD", text_x, y0 + 5.0F, text_pixel,
-                          NW_BANNER_TEXT, inner_x0, inner_x1);
+    /* Opaque fill deliberately covers the text as progress advances. */
+    if (progress > 0.0F) {
+        nw_quad(inner_x0, inner_y0,
+                inner_x0 + progress * inner_w, inner_y1,
+                NW_PROGRESS_FILL);
+    }
 }
 
 static void nw_draw_toolbar(double t)
@@ -544,6 +521,177 @@ static void nw_body_lines(float x, float y, float width,
     }
 }
 
+typedef struct nw_text_box {
+    float x;
+    float y;
+    float width;
+    float height;
+} nw_text_box;
+
+static int nw_text_is_space(char ch)
+{
+    return ch == ' ' || ch == '\t' || ch == '\r';
+}
+
+static size_t nw_draw_text_box(const char *text, size_t offset,
+                               nw_text_box box, float pixel, nw_color c)
+{
+    const float advance = pixel * 6.0F;
+    const float line_step = pixel * 9.0F;
+    unsigned int max_chars;
+    unsigned int max_lines;
+    unsigned int line;
+    char buffer[128];
+
+    if (!text || text[offset] == '\0' ||
+        advance <= 0.0F || line_step <= 0.0F)
+        return offset;
+
+    max_chars = (unsigned int)(box.width / advance);
+    max_lines = (unsigned int)(box.height / line_step);
+    if (max_chars == 0U || max_lines == 0U)
+        return offset;
+    if (max_chars >= sizeof(buffer))
+        max_chars = (unsigned int)sizeof(buffer) - 1U;
+
+    for (line = 0U; line < max_lines && text[offset] != '\0'; line++) {
+        size_t start;
+        size_t scan;
+        size_t last_space = SIZE_MAX;
+        size_t count = 0U;
+        size_t i;
+
+        while (nw_text_is_space(text[offset]))
+            offset++;
+
+        if (text[offset] == '\n') {
+            offset++;
+            continue;
+        }
+        if (text[offset] == '\0')
+            break;
+
+        start = offset;
+        scan = start;
+
+        while (text[scan] != '\0' &&
+               text[scan] != '\n' &&
+               count < (size_t)max_chars) {
+            if (nw_text_is_space(text[scan]))
+                last_space = scan;
+            scan++;
+            count++;
+        }
+
+        if (text[scan] != '\0' &&
+            text[scan] != '\n' &&
+            count == (size_t)max_chars &&
+            last_space != SIZE_MAX &&
+            last_space > start) {
+            scan = last_space;
+            count = scan - start;
+        }
+
+        for (i = 0U; i < count; i++)
+            buffer[i] = text[start + i];
+        buffer[count] = '\0';
+
+        nw_draw_upper(buffer,
+                      box.x,
+                      box.y + (float)line * line_step,
+                      pixel, c);
+
+        offset = scan;
+        if (text[offset] == '\n')
+            offset++;
+        while (nw_text_is_space(text[offset]))
+            offset++;
+    }
+
+    return offset;
+}
+
+static size_t nw_advance_text_lines(const char *text, size_t offset,
+                                    float width, float pixel,
+                                    unsigned int lines)
+{
+    const float advance = pixel * 6.0F;
+    unsigned int max_chars;
+    unsigned int line;
+
+    if (!text || text[offset] == '\0' || advance <= 0.0F)
+        return offset;
+
+    max_chars = (unsigned int)(width / advance);
+    if (max_chars == 0U)
+        return offset;
+
+    for (line = 0U; line < lines && text[offset] != '\0'; line++) {
+        size_t start;
+        size_t scan;
+        size_t last_space = SIZE_MAX;
+        size_t count = 0U;
+
+        while (nw_text_is_space(text[offset]))
+            offset++;
+
+        if (text[offset] == '\n') {
+            offset++;
+            continue;
+        }
+        if (text[offset] == '\0')
+            break;
+
+        start = offset;
+        scan = start;
+
+        while (text[scan] != '\0' &&
+               text[scan] != '\n' &&
+               count < (size_t)max_chars) {
+            if (nw_text_is_space(text[scan]))
+                last_space = scan;
+            scan++;
+            count++;
+        }
+
+        if (text[scan] != '\0' &&
+            text[scan] != '\n' &&
+            count == (size_t)max_chars &&
+            last_space != SIZE_MAX &&
+            last_space > start) {
+            scan = last_space;
+        }
+
+        offset = scan;
+        if (text[offset] == '\n')
+            offset++;
+        while (nw_text_is_space(text[offset]))
+            offset++;
+    }
+
+    return offset;
+}
+
+static void nw_draw_web_scrollbar(float x, float y, float height,
+                                  float progress)
+{
+    const float track_w = 8.0F;
+    const float thumb_h = 36.0F;
+    const float inset = 2.0F;
+    float travel = height - thumb_h - inset * 2.0F;
+    float thumb_y;
+
+    if (travel < 0.0F)
+        travel = 0.0F;
+
+    thumb_y = y + inset + travel * nw_clamp(progress);
+
+    nw_recess(x, y, x + track_w, y + height, NW_CHROME_DARK);
+    nw_quad(x + inset, thumb_y,
+            x + track_w - inset, thumb_y + thumb_h,
+            NW_CHROME_LIGHT);
+}
+
 static void nw_draw_global_banner(float x, float y, float width)
 {
     nw_quad(x, y, x + width, y + 48.0F, NW_BANNER);
@@ -555,31 +703,149 @@ static void nw_draw_global_banner(float x, float y, float width)
 
 static void nw_draw_article(double t)
 {
+    const size_t result_index = 1U;
+    const neo_news_article *article = neo_news_search_result(result_index);
+    neo_document document;
+    const char *body;
+    const char *query = neo_news_query_text();
+    size_t body_offset = 0U;
     float appear = nw_stage(t, 3.0, 6.0);
     float shift = nw_stage(t, 10.0, 14.0);
+    float scroll = nw_stage(t, 6.0, 14.0);
+    float scroll_lines_f = scroll * 8.0F;
+    unsigned int scroll_lines = (unsigned int)scroll_lines_f;
+    float scroll_frac = scroll_lines_f - (float)scroll_lines;
     float x = 32.0F + (1.0F - appear) * 78.0F - shift * 20.0F;
-    float y = 176.0F - appear * 18.0F;
-    float w = 465.0F;
-    float h = 293.0F;
+    float y = 154.0F - appear * 8.0F;
+    float w = 472.0F;
+    float h = 310.0F;
+    const float chrome_h = 22.0F;
+    const float location_h = 16.0F;
+    const float content_x = x + 18.0F;
+    const float content_w = w - 48.0F;
+    const float scrollbar_x = x + w - 18.0F;
+    const float body_pixel = 0.62F;
+    const float body_line_step = body_pixel * 9.0F;
+    nw_text_box title_box;
+    nw_text_box body_box_1;
+    nw_text_box body_box_2;
 
-    if (appear <= 0.0F) return;
+    if (appear <= 0.0F || !article)
+        return;
+    if (!neo_document_from_article(article, &document))
+        return;
+    if (!document.passive_only ||
+        document.remote_resources_allowed ||
+        document.executable_content_allowed)
+        return;
 
+    /*
+     * The search result is rendered as a late-1990s web document inside the
+     * fictional workstation: browser-like chrome stays fixed while article
+     * content scrolls beneath it.  This is intentionally generic so the same
+     * layout can later render live news without changing the scene code.
+     */
     nw_quad(x + 7.0F, y + 8.0F, x + w + 7.0F, y + h + 8.0F,
             NW_CHROME_DARK);
     nw_quad(x, y, x + w, y + h, NW_PAPER);
 
-    nw_draw_upper("MORPHEUS", x + 22.0F, y + 72.0F, 2.15F, NW_INK);
-    nw_draw_upper("ELUDES", x + 22.0F, y + 93.0F, 2.15F, NW_INK);
-    nw_draw_upper("POLICE AT", x + 22.0F, y + 114.0F, 2.15F, NW_INK);
-    nw_draw_upper("HEATHROW", x + 22.0F, y + 135.0F, 2.15F, NW_INK);
-    nw_draw_upper("AIRPORT", x + 22.0F, y + 156.0F, 2.15F, NW_INK);
+    /* Site/search chrome. */
+    nw_quad(x, y, x + w, y + chrome_h, NW_BANNER);
+    nw_line(x, y + chrome_h, x + w, y + chrome_h, NW_CHROME_LIGHT);
+    nw_draw_upper("GLOBAL SEARCH", x + 9.0F, y + 5.0F,
+                  0.82F, NW_BANNER_TEXT);
+    if (query && query[0] != '\0')
+        nw_draw_upper(query, x + 326.0F, y + 5.0F,
+                      0.82F, NW_BANNER_TEXT);
 
-    nw_body_lines(x + 201.0F, y + 73.0F, 225.0F, 14U,
-                  UINT32_C(0x19990331));
-    nw_body_lines(x + 22.0F, y + 190.0F, 168.0F, 11U,
-                  UINT32_C(0x4d4f5250));
-    nw_body_lines(x + 201.0F, y + 190.0F, 225.0F, 11U,
-                  UINT32_C(0x48455553));
+    /* Location/result strip: evokes an address/status row without inventing a URL. */
+    nw_quad(x + 1.0F, y + chrome_h,
+            x + w - 1.0F, y + chrome_h + location_h,
+            NW_CHROME_LIGHT);
+    nw_draw_upper("RESULT 02", x + 9.0F, y + chrome_h + 4.0F,
+                  0.60F, NW_CHROME_DARK);
+    if (document.dateline_text)
+        nw_draw_upper(document.dateline_text, x + 343.0F,
+                      y + chrome_h + 4.0F, 0.60F, NW_CHROME_DARK);
+
+    /* Thin link/navigation rule below the chrome. */
+    nw_quad(x + 1.0F, y + chrome_h + location_h,
+            x + w - 1.0F, y + chrome_h + location_h + 2.0F,
+            NW_CHROME_DARK);
+    nw_quad(x + 18.0F, y + chrome_h + location_h + 5.0F,
+            x + 96.0F, y + chrome_h + location_h + 7.0F,
+            NW_CHROME);
+
+    /* Headline occupies the document header like a web article title. */
+    title_box = (nw_text_box){
+        content_x,
+        y + chrome_h + location_h + 14.0F,
+        content_w,
+        64.0F
+    };
+    if (document.headline_text)
+        (void)nw_draw_text_box(document.headline_text, 0U, title_box,
+                               1.45F, NW_INK);
+
+    /* Divider and tiny metadata rail. */
+    nw_quad(content_x,
+            y + chrome_h + location_h + 82.0F,
+            content_x + content_w,
+            y + chrome_h + location_h + 84.0F,
+            NW_CHROME_DARK);
+
+    if (document.lead_text && document.lead_text[0] != '\0') {
+        nw_text_box lead_box = {
+            content_x,
+            y + chrome_h + location_h + 89.0F,
+            content_w - 10.0F,
+            35.0F
+        };
+        (void)nw_draw_text_box(document.lead_text, 0U, lead_box,
+                               0.70F, NW_CHROME_DARK);
+    }
+
+    body = document.body_text;
+    if (!body || body[0] == '\0')
+        body = document.lead_text;
+
+    if (body && body[0] != '\0') {
+        /*
+         * Scroll the recovered article text in line-sized steps with a smooth
+         * fractional offset.  A future live-news provider supplies the same
+         * display_body field, so no renderer change is required.
+         */
+        body_offset = nw_advance_text_lines(body, 0U,
+                                            content_w * 0.49F,
+                                            body_pixel,
+                                            scroll_lines);
+
+        body_box_1 = (nw_text_box){
+            content_x,
+            y + chrome_h + location_h + 130.0F -
+                scroll_frac * body_line_step,
+            content_w * 0.49F,
+            126.0F
+        };
+        body_box_2 = (nw_text_box){
+            content_x + content_w * 0.52F,
+            y + chrome_h + location_h + 130.0F -
+                scroll_frac * body_line_step,
+            content_w * 0.46F,
+            126.0F
+        };
+
+        body_offset = nw_draw_text_box(body, body_offset, body_box_1,
+                                       body_pixel, NW_INK);
+        (void)nw_draw_text_box(body, body_offset, body_box_2,
+                               body_pixel, NW_INK);
+    }
+
+    /* Fixed browser/document scrollbar. */
+    nw_draw_web_scrollbar(scrollbar_x,
+                          y + chrome_h + location_h + 45.0F,
+                          h - chrome_h - location_h - 56.0F,
+                          scroll);
 }
 
 static void nw_draw_portrait(double t)
@@ -696,5 +962,6 @@ int neo_workstation_self_test(void)
     if (nw_upper_rows('G') == NULL) return 0;
     if (nw_search_rows('a') == NULL) return 0;
     if (nw_search_rows('x') != NULL) return 0;
+    if (neo_news_search_result(1U) == NULL) return 0;
     return 1;
 }

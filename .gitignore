@@ -13,3 +13,6 @@ debian/files
 debian/xscreensaver-screensaver-matrixcode/
 tests/*.ppm
 docs/*.ppm
+generated/
+__pycache__/
+tools/__pycache__/
