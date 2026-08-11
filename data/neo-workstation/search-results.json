@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "scene": "neo-workstation-morpheus-search",
+  "purpose": "Research corpus for reconstructing the newspaper/search content visible on Neo's computer in The Matrix (1999).",
+  "policy": {
+    "authoritative_source_order": [
+      "user-supplied 1999 Blu-ray frames",
+      "independent production/fan research used only as cross-check",
+      "clean-room reconstruction for unreadable copy"
+    ],
+    "unknown_text_rule": "Do not invent exact transcription. Preserve unknown spans explicitly until resolved from frames."
+  },
+  "ui_text": [
+    {
+      "text": "Searching...",
+      "confidence": "confirmed",
+      "role": "floating_status"
+    },
+    {
+      "text": "GLOBAL SEARCH",
+      "confidence": "confirmed",
+      "role": "search_banner"
+    },
+    {
+      "text": "Download",
+      "confidence": "confirmed",
+      "role": "activity_widget"
+    }
+  ],
+  "results": [
+    {
+      "id": "pre_heathrow_chinese_result",
+      "order": 1,
+      "language": "Chinese",
+      "publication": null,
+      "headline": null,
+      "confidence": "result-existence-confirmed_text-unresolved",
+      "notes": "A Chinese-language result appears before the English Heathrow article. Exact visible text still needs direct transcription from dense frames."
+    },
+    {
+      "id": "heathrow_airport",
+      "order": 2,
+      "language": "English",
+      "publication": null,
+      "headline": "MORPHEUS ELUDES POLICE AT HEATHROW AIRPORT",
+      "confidence": "headline-confirmed_body-partial",
+      "visible_fragments": [
+        "London: As the search intensifies for the renown terrorist leader,",
+        "Morpheus",
+        "British intelligence",
+        "recent terrorist events in South America",
+        "Intelligence Agencies Worldwide",
+        "the resistance",
+        "Heathrow Airport"
+      ],
+      "body_research_summary": "The article reports an alleged sighting of Morpheus, describes an international intelligence pursuit of him and his resistance group, references earlier terrorist events in South America, and includes comments from a local policeman at Heathrow. Large portions remain obscured or blurred.",
+      "transcription_status": {
+        "column_1": "partial",
+        "column_2": "partial",
+        "column_3": "mostly_unresolved"
+      },
+      "next_action": "Transcribe directly from adjacent 7-fps/5-fps frames, retaining [unreadable] spans."
+    },
+    {
+      "id": "an_nahar",
+      "order": 3,
+      "language": "Arabic",
+      "publication": "AN-NAHAR",
+      "headline": null,
+      "confidence": "publication-confirmed_body-unresolved",
+      "visible_fragments": [
+        "AN-NAHAR",
+        "ALL STATES $1.50"
+      ],
+      "notes": "Large Arabic masthead and Arabic body/interface text are visible. Exact Arabic transcription should be done from the sharpest local frames rather than guessed from the blurred movie image.",
+      "next_action": "Identify best 7-fps frames and transcribe masthead/subhead/body separately."
+    },
+    {
+      "id": "courier_press_manhunt",
+      "order": 4,
+      "language": "English",
+      "publication": "The Courier Press",
+      "headline": "INTERNATIONAL MANHUNT UNDERWAY",
+      "confidence": "publication-and-headline-supported_body-unresolved",
+      "notes": "Appears later in the global search sequence. Exact body text has not yet been reliably recovered.",
+      "next_action": "Locate sharpest late-search frames and transcribe headline/subhead/body independently."
+    }
+  ],
+  "research_cross_checks": [
+    {
+      "source": "Animal Logic - The Matrix portfolio",
+      "use": "Confirms Animal Logic created the opening trace programme and screen inserts for the 1999 film."
+    },
+    {
+      "source": "Studio C / Computer Graphics World - Matrix Resurrections",
+      "use": "Confirms the Morpheus-search screen was rebuilt frame-by-frame for Resurrections from original-trilogy screen grabs."
+    },
+    {
+      "source": "Movies & TV Stack Exchange - What program is Neo using?",
+      "use": "Cross-checks result order: Chinese, English Heathrow, An-Nahar, later Courier Press."
+    },
+    {
+      "source": "Lozhki.net Matrix forum (2004)",
+      "use": "Contains a fan transcription attempt of the Heathrow article with explicit unreadable gaps; useful only as a cross-check."
+    },
+    {
+      "source": "Matrix PopApostle",
+      "use": "Independently confirms readable Heathrow fragments and the later international-manhunt result."
+    }
+  ]
+}

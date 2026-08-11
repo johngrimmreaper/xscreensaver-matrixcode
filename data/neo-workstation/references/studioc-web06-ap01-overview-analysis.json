@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "reference_id": "studioc-web06-ap01",
+  "source_overview": {
+    "sample_rate_fps": 2,
+    "pages": 20,
+    "duration_seconds": 10.0,
+    "page_time_formula": "(page_number - 1) / 2",
+    "authority": "professional-secondary-reference",
+    "canonical_for_1999_timing": false
+  },
+  "persistent_layers": [
+    {
+      "id": "toolbar",
+      "observation": "Top toolbar geometry remains fixed throughout the 20-page overview."
+    },
+    {
+      "id": "searching_status",
+      "observation": "The dark-green 'Searching...' overlay remains fixed near the upper-left throughout."
+    },
+    {
+      "id": "morpheus_portrait",
+      "observation": "The large monochrome portrait pane remains fixed on the right while document content moves beneath/behind it."
+    },
+    {
+      "id": "download_activity",
+      "observation": "The top-center activity widget remains in a fixed location, while its pale block/text state changes cyclically."
+    }
+  ],
+  "reference_only_occlusion": {
+    "type": "opaque_square",
+    "approx_crop_coordinates_px": {
+      "x": 369,
+      "y": 260,
+      "width": 114,
+      "height": 114
+    },
+    "observation": "The square stays fixed in screen coordinates while documents move, strongly indicating a portfolio/reference occlusion rather than workstation UI.",
+    "render_in_matrixcode": false
+  },
+  "activity_widget": {
+    "label": "Download",
+    "observation": "The 2-fps samples suggest a repeating marquee/slider-like activity animation rather than a simple monotonic 0-100% progress fill.",
+    "candidate_period_seconds": 4.5,
+    "candidate_period_frames_at_24fps": 108,
+    "supporting_samples": [
+      {
+        "time_seconds": 0.0,
+        "similar_state_again_at_seconds": [
+          4.5,
+          9.0
+        ]
+      },
+      {
+        "time_seconds": 2.0,
+        "similar_state_again_at_seconds": [
+          6.5
+        ]
+      },
+      {
+        "time_seconds": 4.0,
+        "similar_state_again_at_seconds": [
+          8.5
+        ]
+      }
+    ],
+    "confidence": "strong-hypothesis-from-2fps-overview",
+    "next_action": "Verify against the full 24-fps frame sequence."
+  },
+  "timeline_2fps": [
+    {
+      "start_seconds": 0.0,
+      "end_seconds": 2.0,
+      "pages": [
+        1,
+        5
+      ],
+      "state": "arabic_daily_path",
+      "visible_text": [
+        "THE DAILY PATH",
+        "Monday March 2, 1998",
+        "All States $1.60"
+      ],
+      "notes": "Arabic-heavy page scrolls upward beneath persistent Searching/portrait UI."
+    },
+    {
+      "start_seconds": 2.5,
+      "end_seconds": 6.5,
+      "pages": [
+        6,
+        14
+      ],
+      "state": "east_asian_red_page_and_pyongyang_copy",
+      "visible_text": [
+        "PYONGYANG - The accusations across the globe continue.",
+        "North Korea",
+        "Kim Jong-un",
+        "Singapore"
+      ],
+      "notes": "Red East-Asian-language page dominates the upper document area while English Pyongyang copy becomes visible lower down."
+    },
+    {
+      "start_seconds": 7.0,
+      "end_seconds": 9.5,
+      "pages": [
+        15,
+        20
+      ],
+      "state": "courier_morpheus_result",
+      "visible_text": [
+        "THE COURIER",
+        "Morpheus Tops Terrorist List"
+      ],
+      "notes": "Large Courier masthead/result rises into view; Morpheus result headline becomes clearly readable."
+    }
+  ],
+  "important_interpretation": {
+    "studio_c_text_is_not_1999_canonical": true,
+    "reason": "The Pyongyang article visibly mentions Kim Jong-un and Singapore-era geopolitical copy, demonstrating that at least some body text was modern filler/reconstruction material rather than preserved 1999 screen copy.",
+    "recommended_use": [
+      "toolbar geometry",
+      "widget proportions",
+      "layering",
+      "scroll/motion behavior",
+      "typographic scale",
+      "portrait framing",
+      "activity-widget animation"
+    ],
+    "do_not_treat_as_canonical_without_crosscheck": [
+      "article body text",
+      "result ordering",
+      "exact 1999 timing"
+    ]
+  },
+  "recommended_full_rate_windows": [
+    {
+      "purpose": "Arabic-to-red-result transition",
+      "approx_seconds": [
+        2.0,
+        2.5
+      ],
+      "approx_frame_range_1_based": [
+        49,
+        61
+      ],
+      "suggested_inspection_range": [
+        43,
+        67
+      ]
+    },
+    {
+      "purpose": "Red/Pyongyang-to-Courier transition",
+      "approx_seconds": [
+        6.5,
+        7.0
+      ],
+      "approx_frame_range_1_based": [
+        157,
+        169
+      ],
+      "suggested_inspection_range": [
+        151,
+        175
+      ]
+    },
+    {
+      "purpose": "Verify Download activity cycle",
+      "candidate_frame_offset": 108,
+      "compare_pairs": [
+        [
+          1,
+          109
+        ],
+        [
+          49,
+          157
+        ],
+        [
+          97,
+          205
+        ]
+      ]
+    }
+  ]
+}

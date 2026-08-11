@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "studioc-web06-ap01",
+  "role": "professional-secondary-reference",
+  "canonical_for_timing": false,
+  "notes": "Studio C portfolio material. Useful for clean geometry, proportions, typography and layering, but not authoritative for the timing/order of The Matrix (1999) final cut.",
+  "source": {
+    "filename": "Web06_AP01.mp4",
+    "width": 3000,
+    "height": 1250,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_seconds": 10.0,
+    "frame_count": 240,
+    "pixel_format": "yuv420p"
+  },
+  "neo_workstation_panel": {
+    "x": 1075,
+    "y": 308,
+    "width": 850,
+    "height": 636
+  },
+  "local_derivative": {
+    "filename": "studioc-neo-workstation.mkv",
+    "codec": "ffv1",
+    "width": 850,
+    "height": 636
+  },
+  "frame_mapping": {
+    "first_filename": "frame-0001.png",
+    "formula_seconds": "(frame_number - 1) / 24"
+  },
+  "known_limitations": [
+    "Portfolio sequence is incomplete and must not be treated as canonical animation timing.",
+    "Some frames contain an opaque rectangular occlusion over the central workstation content.",
+    "The 1999 final-cut Blu-ray remains the primary reference for event ordering, timing and camera behavior."
+  ]
+}
