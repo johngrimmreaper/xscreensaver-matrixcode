@@ -1,288 +1,384 @@
 {
-  "schema_version": 2,
-  "scene": "neo-workstation-morpheus-search",
-  "purpose": "Research corpus for reconstructing text visible in the 1999 Neo workstation search sequence.",
-  "text_source_strategy": {
-    "discovery_priority": [
-      "independent internet transcriptions made from the 1999 film",
-      "Matrix research and archival fan sites",
-      "older forum archaeology and surviving screenshots",
-      "modern transcription/localization projects",
-      "user-supplied 1999 Blu-ray frames"
-    ],
-    "verification_authority": "user-supplied 1999 Blu-ray frames",
-    "studio_c_policy": "Use Studio C primarily for geometry, typography, layering and motion. Do not assume its article body copy is identical to the 1999 film.",
-    "unknown_text_rule": "Do not invent exact transcription. Preserve unresolved spans and use clearly labeled semantic summaries or clean-room replacement prose.",
-    "copyright_rule": "Store short screen labels/headlines and research summaries, not full third-party transcriptions copied verbatim."
+  "schema_version": 3,
+  "dataset": {
+    "id": "neo-workstation-news",
+    "kind": "news-corpus",
+    "description": "News/article records used by the Neo Workstation renderer. The same record shape is intended for both the curated 1999 film corpus and future live-news ingestion.",
+    "default_search_session_id": "matrix1999-morpheus-global-search",
+    "article_model": "database-like",
+    "future_storage_note": "This JSON is the portable curated dataset. A future live mode may persist the same logical records in SQLite."
   },
-  "ui_text": [
+  "ui_strings": [
     {
+      "id": "searching-status",
       "text": "Searching...",
-      "role": "floating_status",
-      "confidence": "confirmed",
-      "evidence": [
-        "bluray-local",
-        "movies-se-neo-search",
-        "opengamestudio-apartment"
-      ]
+      "role": "floating_status"
     },
     {
+      "id": "global-search-banner",
       "text": "GLOBAL SEARCH",
-      "role": "search_banner",
-      "confidence": "confirmed",
-      "evidence": [
-        "bluray-local",
-        "movies-se-neo-search",
-        "lozhki-global-search-2004"
-      ]
+      "role": "search_banner"
     },
     {
+      "id": "download-activity",
       "text": "Download",
-      "role": "activity_widget",
-      "confidence": "confirmed-in-studioc-reference_needs-1999-timing-verification",
-      "evidence": [
-        "studioc-web06-ap01-local"
-      ]
+      "role": "activity_widget"
     }
   ],
-  "results": [
+  "publishers": [
     {
-      "id": "pre_heathrow_east_asian_result",
-      "reported_order": 1,
-      "language": "Chinese",
-      "language_confidence": "secondary-source-report_needs-bluray-verification",
-      "publication": null,
-      "headline": null,
-      "body_status": "unresolved",
-      "evidence": [
-        "movies-se-neo-search"
+      "id": "an-nahar",
+      "name": "An-Nahar",
+      "native_name": "النهار",
+      "type": "newspaper",
+      "country_code": "LB",
+      "language_codes": [
+        "ar"
       ],
-      "notes": [
-        "Movies & TV Stack Exchange reports barely visible Chinese characters before the Heathrow result.",
-        "Modern Chinese localization/transcription projects are not evidence for the actual Chinese newspaper text shown in 1999."
-      ],
-      "next_action": "Use the 1999 Blu-ray frame archive to identify the sharpest frames, then search exact visible character clusters on the web."
-    },
-    {
-      "id": "heathrow_airport",
-      "reported_order": 2,
-      "language": "English",
-      "publication": {
-        "name": null,
-        "confidence": "unresolved"
-      },
-      "headline": {
-        "text": "MORPHEUS ELUDES POLICE AT HEATHROW AIRPORT",
-        "confidence": "confirmed",
-        "evidence": [
-          "bluray-local",
-          "lozhki-global-search-2004",
-          "popapostle-matrix",
-          "movies-se-neo-search",
-          "filmsite-matrix",
-          "opengamestudio-apartment"
-        ]
-      },
-      "body_status": "partial-reconstruction",
-      "columns": [
-        {
-          "id": 1,
-          "status": "partial",
-          "semantic_claims": [
-            {
-              "claim": "The article has a London dateline and says the search for Morpheus is intensifying.",
-              "confidence": "strong",
-              "evidence": [
-                "lozhki-global-search-2004",
-                "popapostle-matrix",
-                "societyx-heathrow"
-              ]
-            },
-            {
-              "claim": "A Morpheus sighting is reported to the newspaper by British intelligence.",
-              "confidence": "strong",
-              "evidence": [
-                "lozhki-global-search-2004",
-                "popapostle-matrix",
-                "societyx-heathrow"
-              ]
-            }
-          ],
-          "unresolved_spans": true
-        },
-        {
-          "id": 2,
-          "status": "substantial-partial",
-          "semantic_claims": [
-            {
-              "claim": "Morpheus's identity is said to have been verified in connection with recent terrorist events in South America.",
-              "confidence": "moderate-to-strong",
-              "evidence": [
-                "lozhki-global-search-2004"
-              ]
-            },
-            {
-              "claim": "Intelligence agencies worldwide are described as pursuing Morpheus and a group called the resistance.",
-              "confidence": "strong",
-              "evidence": [
-                "lozhki-global-search-2004",
-                "societyx-heathrow"
-              ]
-            },
-            {
-              "claim": "A local police officer at Heathrow comments on cooperation with intelligence in the pursuit.",
-              "confidence": "strong",
-              "evidence": [
-                "lozhki-global-search-2004",
-                "popapostle-matrix",
-                "societyx-heathrow"
-              ]
-            },
-            {
-              "claim": "Authorities say Morpheus's physical and cultural attributes are difficult to determine.",
-              "confidence": "strong",
-              "evidence": [
-                "lozhki-global-search-2004",
-                "popapostle-matrix",
-                "societyx-heathrow"
-              ]
-            },
-            {
-              "claim": "The article says espionage/intelligence communities are moving closer to establishing Morpheus's identity.",
-              "confidence": "moderate-to-strong",
-              "evidence": [
-                "lozhki-global-search-2004",
-                "societyx-heathrow"
-              ]
-            }
-          ],
-          "unresolved_spans": true
-        },
-        {
-          "id": 3,
-          "status": "mostly-unresolved",
-          "candidate_concepts": [
-            "global search",
-            "world government leaders",
-            "technology",
-            "company data",
-            "terrorist",
-            "evidence"
-          ],
-          "confidence": "low-to-moderate",
-          "evidence": [
-            "lozhki-global-search-2004"
-          ],
-          "notes": "The 2004 transcription intentionally replaces most unreadable words with placeholders."
-        }
-      ],
-      "research_history": [
-        {
-          "date": "2004-04",
-          "source": "lozhki-global-search-2004",
-          "importance": "Earliest detailed transcription found in this research pass; organized by article columns and explicitly marks unreadable text."
-        },
-        {
-          "date": "2013-01-24",
-          "source": "societyx-heathrow",
-          "importance": "Independent-or-possibly-derivative web reproduction of several readable Heathrow passages; useful as corroboration, not sole authority."
-        },
-        {
-          "source": "popapostle-matrix",
-          "importance": "Independent scene study that identifies readable fragments and explicitly marks illegible regions."
-        }
-      ],
-      "rendering_recommendation": {
-        "headline": "render-exact",
-        "body": "Do not fill gaps with purported canonical prose. Render only confirmed/compatible fragments or a clean-room reconstructed article with provenance kept separate."
-      }
-    },
-    {
-      "id": "an_nahar",
-      "reported_order": 3,
-      "language": "Arabic",
-      "publication": {
-        "name_latin": "An-Nahar",
-        "name_arabic": "النهار",
-        "meaning_en": "The Day",
+      "homepage_url": null,
+      "domain": null,
+      "provenance": {
         "confidence": "confirmed-publication-identity",
-        "evidence": [
+        "evidence_source_ids": [
           "bluray-local",
           "popapostle-matrix",
           "movies-se-neo-search",
           "transparent-arabic-annahar",
           "kuleuven-postmodern-matrix"
         ]
+      }
+    }
+  ],
+  "articles": [
+    {
+      "id": "matrix1999-east-asian-result",
+      "record_type": "article",
+      "origin": "film-fictional",
+      "provider": "matrix1999-film-corpus",
+      "external_id": null,
+      "publisher_id": null,
+      "language": "zh",
+      "country_code": null,
+      "title": null,
+      "subtitle": null,
+      "authors": [],
+      "dateline": null,
+      "published_at": null,
+      "updated_at": null,
+      "url": null,
+      "canonical_url": null,
+      "summary": null,
+      "content_status": "unresolved",
+      "body": {
+        "format": "segments",
+        "segments": []
       },
-      "headline": null,
-      "body_status": "unresolved",
-      "notes": [
-        "The web research strongly confirms the newspaper identity but did not uncover a reliable transcription of the Arabic body copy from the 1999 screen.",
-        "Do not substitute Studio C's reconstructed Arabic/other international article text for the 1999 body."
+      "media": [],
+      "topics": [],
+      "entities": [
+        {
+          "type": "person",
+          "name": "Morpheus"
+        }
       ],
-      "next_action": "Extract the sharpest An-Nahar frames from the 1999 Blu-ray, identify masthead/subhead character sequences, then run Arabic-specific searches."
+      "locations": [],
+      "provenance": {
+        "confidence": "result-existence-supported_text-unresolved",
+        "field_evidence": {
+          "language": [
+            "movies-se-neo-search"
+          ]
+        },
+        "notes": [
+          "The language is reported as Chinese by secondary research and still needs direct verification against the 1999 Blu-ray."
+        ]
+      }
     },
     {
-      "id": "final_manhunt_result",
-      "reported_order": 4,
-      "language": "English",
-      "publication": {
-        "status": "disputed",
-        "candidates": [
+      "id": "matrix1999-heathrow",
+      "record_type": "article",
+      "origin": "film-fictional",
+      "provider": "matrix1999-film-corpus",
+      "external_id": null,
+      "publisher_id": null,
+      "language": "en",
+      "country_code": null,
+      "title": "MORPHEUS ELUDES POLICE AT HEATHROW AIRPORT",
+      "subtitle": null,
+      "authors": [],
+      "dateline": "London",
+      "published_at": null,
+      "updated_at": null,
+      "url": null,
+      "canonical_url": null,
+      "summary": "A reported sighting of Morpheus at Heathrow is described amid an intensifying international intelligence search.",
+      "content_status": "partial",
+      "body": {
+        "format": "segments",
+        "segments": [
           {
-            "name": "Press Courier",
-            "evidence": [
-              "popapostle-matrix"
+            "sequence": 1,
+            "kind": "paragraph",
+            "text": null,
+            "summary": "London dateline; the search for Morpheus is intensifying and a sighting is reported by British intelligence.",
+            "content_status": "partial",
+            "confidence": "strong",
+            "evidence_source_ids": [
+              "lozhki-global-search-2004",
+              "popapostle-matrix",
+              "societyx-heathrow"
             ]
           },
           {
-            "name": "The Courier Press",
-            "evidence": [
-              "movies-se-neo-search"
+            "sequence": 2,
+            "kind": "paragraph",
+            "text": null,
+            "summary": "Morpheus is linked to recent terrorist events in South America; intelligence agencies worldwide pursue him and a group called the resistance.",
+            "content_status": "partial",
+            "confidence": "moderate-to-strong",
+            "evidence_source_ids": [
+              "lozhki-global-search-2004",
+              "societyx-heathrow"
+            ]
+          },
+          {
+            "sequence": 3,
+            "kind": "paragraph",
+            "text": null,
+            "summary": "A Heathrow police officer discusses cooperation with intelligence; authorities say Morpheus's physical and cultural attributes are difficult to determine.",
+            "content_status": "partial",
+            "confidence": "strong",
+            "evidence_source_ids": [
+              "lozhki-global-search-2004",
+              "popapostle-matrix",
+              "societyx-heathrow"
+            ]
+          },
+          {
+            "sequence": 4,
+            "kind": "paragraph",
+            "text": null,
+            "summary": "Remaining column text is mostly unresolved; candidate concepts include global search, government leaders, technology, company data, terrorism and evidence.",
+            "content_status": "unresolved",
+            "confidence": "low-to-moderate",
+            "evidence_source_ids": [
+              "lozhki-global-search-2004"
             ]
           }
-        ],
-        "confidence": "needs-1999-bluray-verification"
-      },
-      "headline": {
-        "text": "INTERNATIONAL MANHUNT UNDERWAY",
-        "confidence": "strongly-supported",
-        "evidence": [
-          "bluray-local",
-          "movies-se-neo-search",
-          "filmsite-matrix",
-          "opengamestudio-apartment",
-          "kuleuven-postmodern-matrix"
         ]
       },
-      "body_status": "unresolved",
-      "notes": [
-        "No reliable full body transcription was found in this research pass.",
-        "The exact publication name conflicts across otherwise useful secondary sources."
+      "media": [],
+      "topics": [
+        "manhunt",
+        "terrorism",
+        "intelligence"
       ],
-      "next_action": "Use late-search 1999 Blu-ray frames specifically to resolve the masthead before encoding a publication name."
+      "entities": [
+        {
+          "type": "person",
+          "name": "Morpheus"
+        },
+        {
+          "type": "group",
+          "name": "the resistance"
+        },
+        {
+          "type": "organization",
+          "name": "British intelligence"
+        }
+      ],
+      "locations": [
+        {
+          "name": "London",
+          "country_code": "GB"
+        },
+        {
+          "name": "Heathrow Airport",
+          "country_code": "GB"
+        },
+        {
+          "name": "South America",
+          "country_code": null
+        }
+      ],
+      "provenance": {
+        "confidence": "headline-confirmed_body-partial",
+        "field_evidence": {
+          "title": [
+            "bluray-local",
+            "lozhki-global-search-2004",
+            "popapostle-matrix",
+            "movies-se-neo-search",
+            "filmsite-matrix",
+            "opengamestudio-apartment"
+          ],
+          "dateline": [
+            "lozhki-global-search-2004",
+            "popapostle-matrix",
+            "societyx-heathrow"
+          ]
+        },
+        "notes": [
+          "Do not invent exact missing prose. Segment summaries describe the strongest surviving semantic reconstruction."
+        ]
+      }
+    },
+    {
+      "id": "matrix1999-an-nahar",
+      "record_type": "article",
+      "origin": "film-fictional",
+      "provider": "matrix1999-film-corpus",
+      "external_id": null,
+      "publisher_id": "an-nahar",
+      "language": "ar",
+      "country_code": "LB",
+      "title": null,
+      "subtitle": null,
+      "authors": [],
+      "dateline": null,
+      "published_at": null,
+      "updated_at": null,
+      "url": null,
+      "canonical_url": null,
+      "summary": null,
+      "content_status": "unresolved",
+      "body": {
+        "format": "segments",
+        "segments": []
+      },
+      "media": [],
+      "topics": [],
+      "entities": [
+        {
+          "type": "person",
+          "name": "Morpheus"
+        }
+      ],
+      "locations": [],
+      "provenance": {
+        "confidence": "publisher-confirmed_body-unresolved",
+        "field_evidence": {
+          "publisher_id": [
+            "bluray-local",
+            "popapostle-matrix",
+            "movies-se-neo-search",
+            "transparent-arabic-annahar",
+            "kuleuven-postmodern-matrix"
+          ]
+        },
+        "notes": [
+          "The 1999 Arabic headline/body remain unresolved.",
+          "Studio C reconstruction text must not be substituted for the original 1999 article body."
+        ]
+      }
+    },
+    {
+      "id": "matrix1999-international-manhunt",
+      "record_type": "article",
+      "origin": "film-fictional",
+      "provider": "matrix1999-film-corpus",
+      "external_id": null,
+      "publisher_id": null,
+      "language": "en",
+      "country_code": null,
+      "title": "INTERNATIONAL MANHUNT UNDERWAY",
+      "subtitle": null,
+      "authors": [],
+      "dateline": null,
+      "published_at": null,
+      "updated_at": null,
+      "url": null,
+      "canonical_url": null,
+      "summary": null,
+      "content_status": "unresolved",
+      "body": {
+        "format": "segments",
+        "segments": []
+      },
+      "media": [],
+      "topics": [
+        "manhunt"
+      ],
+      "entities": [
+        {
+          "type": "person",
+          "name": "Morpheus"
+        }
+      ],
+      "locations": [],
+      "provenance": {
+        "confidence": "headline-strongly-supported_publisher-disputed",
+        "field_evidence": {
+          "title": [
+            "bluray-local",
+            "movies-se-neo-search",
+            "filmsite-matrix",
+            "opengamestudio-apartment",
+            "kuleuven-postmodern-matrix"
+          ]
+        },
+        "field_candidates": {
+          "publisher": [
+            {
+              "value": "Press Courier",
+              "evidence_source_ids": [
+                "popapostle-matrix"
+              ]
+            },
+            {
+              "value": "The Courier Press",
+              "evidence_source_ids": [
+                "movies-se-neo-search"
+              ]
+            }
+          ]
+        },
+        "notes": [
+          "The publication masthead must be verified against the 1999 Blu-ray before publisher_id is populated."
+        ]
+      }
     }
   ],
-  "negative_findings": [
+  "search_sessions": [
     {
-      "topic": "complete_heathrow_body",
-      "finding": "No trustworthy complete transcription was found. The best 2004 source is explicitly partial."
-    },
-    {
-      "topic": "an_nahar_body",
-      "finding": "No reliable web transcription of the 1999 Arabic article body was found."
-    },
-    {
-      "topic": "first_chinese_result_body",
-      "finding": "No reliable web transcription of the actual first East-Asian-language result was found."
-    },
-    {
-      "topic": "final_manhunt_body",
-      "finding": "No reliable full body transcription was found."
-    },
-    {
-      "topic": "higher_resolution_1999_stills",
-      "finding": "This pass did not find a clearly superior public 1999 still to the user's own 1080p Blu-ray frame archive."
+      "id": "matrix1999-morpheus-global-search",
+      "mode": "film-reconstruction",
+      "provider": "matrix1999-film-corpus",
+      "query": {
+        "text": "Morpheus",
+        "type": "person",
+        "language": null,
+        "country_code": null
+      },
+      "started_at": null,
+      "completed_at": null,
+      "status": "curated-reference",
+      "results": [
+        {
+          "rank": 1,
+          "article_id": "matrix1999-east-asian-result",
+          "match_score": null,
+          "appearance_order": 1
+        },
+        {
+          "rank": 2,
+          "article_id": "matrix1999-heathrow",
+          "match_score": null,
+          "appearance_order": 2
+        },
+        {
+          "rank": 3,
+          "article_id": "matrix1999-an-nahar",
+          "match_score": null,
+          "appearance_order": 3
+        },
+        {
+          "rank": 4,
+          "article_id": "matrix1999-international-manhunt",
+          "match_score": null,
+          "appearance_order": 4
+        }
+      ]
     }
   ]
 }
