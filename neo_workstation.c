@@ -420,7 +420,7 @@ static void nw_draw_download_activity(double t)
     const float inner_y0 = y0 + 3.0F;
     const float inner_y1 = y1 - 3.0F;
     const float inner_w = inner_x1 - inner_x0;
-    const double period = 2.30;
+    const double period = 4.60;
     double cycle = fmod(t, period);
     float progress;
 
@@ -437,8 +437,9 @@ static void nw_draw_download_activity(double t)
      *      overwrites the word as it advances.
      *   4. At the end of the cycle the field resets and starts again.
      *
-     * The 2.30 s period is the current frame-measured estimate from the native
-     * 23.976 fps Blu-ray sequence and can be refined independently later.
+     * The original 2.30 s frame estimate reads too quickly when the widget
+     * repeats continuously in the screensaver.  4.60 s is a provisional
+     * presentation tune; direct adjacent-frame timing can refine it later.
      */
     nw_bevel(x0 - 1.0F, y0 - 1.0F, x1 + 1.0F, y1 + 1.0F, NW_CHROME);
     nw_recess(x0, y0, x1, y1, NW_BANNER);
@@ -594,6 +595,98 @@ static const uint8_t *nw_doc_rows(char ch)
     }
 }
 
+static float nw_doc_advance(char ch, float pixel)
+{
+    float units;
+
+    switch (ch) {
+    case ' ':
+        units = 2.85F;
+        break;
+    case '\t':
+        units = 5.70F;
+        break;
+    case '.':
+    case ',':
+    case '\'':
+    case '!':
+        units = 3.05F;
+        break;
+    case '"':
+    case ':':
+        units = 3.55F;
+        break;
+    case 'i':
+    case 'l':
+    case 'I':
+    case '1':
+        units = 4.20F;
+        break;
+    case 'f':
+    case 'j':
+    case 'r':
+    case 't':
+    case '(':
+    case ')':
+    case '-':
+    case '/':
+        units = 4.65F;
+        break;
+    case 'm':
+    case 'w':
+    case 'M':
+    case 'W':
+        units = 6.10F;
+        break;
+    default:
+        if (ch >= 'A' && ch <= 'Z')
+            units = 5.70F;
+        else
+            units = 5.25F;
+        break;
+    }
+
+    return units * pixel;
+}
+
+static float nw_doc_line_step(float pixel)
+{
+    return pixel * 8.45F;
+}
+
+static size_t nw_doc_line_end(const char *text, size_t start,
+                              float width, float pixel)
+{
+    size_t scan = start;
+    size_t last_space = SIZE_MAX;
+    float used = 0.0F;
+
+    if (!text || text[start] == '\0' || width <= 0.0F || pixel <= 0.0F)
+        return start;
+
+    while (text[scan] != '\0' && text[scan] != '\n') {
+        float advance = nw_doc_advance(text[scan], pixel);
+
+        if (used + advance > width) {
+            if (scan == start)
+                scan++;
+            break;
+        }
+
+        if (nw_text_is_space(text[scan]))
+            last_space = scan;
+
+        used += advance;
+        scan++;
+    }
+
+    if (text[scan] != '\0' && text[scan] != '\n' &&
+        last_space != SIZE_MAX && last_space > start)
+        scan = last_space;
+
+    return scan;
+}
+
 static void nw_draw_doc_text(const char *text, float x, float y, float pixel,
                              nw_color c)
 {
@@ -615,7 +708,7 @@ static void nw_draw_doc_text(const char *text, float x, float y, float pixel,
         unsigned int col;
 
         if (text[n] == '\n') {
-            y += pixel * 9.0F;
+            y += nw_doc_line_step(pixel);
             pen = x;
             continue;
         }
@@ -636,7 +729,7 @@ static void nw_draw_doc_text(const char *text, float x, float y, float pixel,
             }
         }
 
-        pen += pixel * 6.0F;
+        pen += nw_doc_advance(text[n], pixel);
     }
 
     glEnd();
@@ -646,29 +739,24 @@ static void nw_draw_doc_text(const char *text, float x, float y, float pixel,
 static size_t nw_draw_text_box(const char *text, size_t offset,
                                nw_text_box box, float pixel, nw_color c)
 {
-    const float advance = pixel * 6.0F;
-    const float line_step = pixel * 9.0F;
-    unsigned int max_chars;
+    const float line_step = nw_doc_line_step(pixel);
+    const float glyph_height = pixel * 7.0F;
     unsigned int max_lines;
     unsigned int line;
     char buffer[128];
 
-    if (!text || text[offset] == '\0' ||
-        advance <= 0.0F || line_step <= 0.0F)
+    if (!text || text[offset] == '\0' || pixel <= 0.0F ||
+        line_step <= 0.0F || box.width <= 0.0F ||
+        box.height < glyph_height)
         return offset;
 
-    max_chars = (unsigned int)(box.width / advance);
-    max_lines = (unsigned int)(box.height / line_step);
-    if (max_chars == 0U || max_lines == 0U)
-        return offset;
-    if (max_chars >= sizeof(buffer))
-        max_chars = (unsigned int)sizeof(buffer) - 1U;
+    max_lines = 1U +
+        (unsigned int)((box.height - glyph_height) / line_step);
 
     for (line = 0U; line < max_lines && text[offset] != '\0'; line++) {
         size_t start;
-        size_t scan;
-        size_t last_space = SIZE_MAX;
-        size_t count = 0U;
+        size_t end;
+        size_t count;
         size_t i;
 
         while (nw_text_is_space(text[offset]))
@@ -682,24 +770,14 @@ static size_t nw_draw_text_box(const char *text, size_t offset,
             break;
 
         start = offset;
-        scan = start;
+        end = nw_doc_line_end(text, start, box.width, pixel);
+        if (end <= start)
+            break;
 
-        while (text[scan] != '\0' &&
-               text[scan] != '\n' &&
-               count < (size_t)max_chars) {
-            if (nw_text_is_space(text[scan]))
-                last_space = scan;
-            scan++;
-            count++;
-        }
-
-        if (text[scan] != '\0' &&
-            text[scan] != '\n' &&
-            count == (size_t)max_chars &&
-            last_space != SIZE_MAX &&
-            last_space > start) {
-            scan = last_space;
-            count = scan - start;
+        count = end - start;
+        if (count >= sizeof(buffer)) {
+            count = sizeof(buffer) - 1U;
+            end = start + count;
         }
 
         for (i = 0U; i < count; i++)
@@ -711,7 +789,7 @@ static size_t nw_draw_text_box(const char *text, size_t offset,
                          box.y + (float)line * line_step,
                          pixel, c);
 
-        offset = scan;
+        offset = end;
         if (text[offset] == '\n')
             offset++;
         while (nw_text_is_space(text[offset]))
@@ -725,22 +803,13 @@ static size_t nw_advance_text_lines(const char *text, size_t offset,
                                     float width, float pixel,
                                     unsigned int lines)
 {
-    const float advance = pixel * 6.0F;
-    unsigned int max_chars;
     unsigned int line;
 
-    if (!text || text[offset] == '\0' || advance <= 0.0F)
-        return offset;
-
-    max_chars = (unsigned int)(width / advance);
-    if (max_chars == 0U)
+    if (!text || text[offset] == '\0' || width <= 0.0F || pixel <= 0.0F)
         return offset;
 
     for (line = 0U; line < lines && text[offset] != '\0'; line++) {
-        size_t start;
-        size_t scan;
-        size_t last_space = SIZE_MAX;
-        size_t count = 0U;
+        size_t end;
 
         while (nw_text_is_space(text[offset]))
             offset++;
@@ -752,27 +821,11 @@ static size_t nw_advance_text_lines(const char *text, size_t offset,
         if (text[offset] == '\0')
             break;
 
-        start = offset;
-        scan = start;
+        end = nw_doc_line_end(text, offset, width, pixel);
+        if (end <= offset)
+            break;
 
-        while (text[scan] != '\0' &&
-               text[scan] != '\n' &&
-               count < (size_t)max_chars) {
-            if (nw_text_is_space(text[scan]))
-                last_space = scan;
-            scan++;
-            count++;
-        }
-
-        if (text[scan] != '\0' &&
-            text[scan] != '\n' &&
-            count == (size_t)max_chars &&
-            last_space != SIZE_MAX &&
-            last_space > start) {
-            scan = last_space;
-        }
-
-        offset = scan;
+        offset = end;
         if (text[offset] == '\n')
             offset++;
         while (nw_text_is_space(text[offset]))
@@ -838,8 +891,8 @@ static void nw_draw_article(double t)
     const float content_x = x + 14.0F;
     const float content_w = w - 38.0F;
     const float scrollbar_x = x + w - 13.0F;
-    const float body_pixel = 0.54F;
-    const float body_line_step = body_pixel * 9.0F;
+    const float body_pixel = 0.68F;
+    const float body_line_step = nw_doc_line_step(body_pixel);
     nw_text_box title_box;
     nw_text_box lead_box;
     nw_text_box body_box_1;
@@ -877,8 +930,8 @@ static void nw_draw_article(double t)
     nw_draw_upper("RESULT 02", x + 7.0F, y + chrome_h + 2.0F,
                   0.48F, NW_CHROME_DARK);
     if (document.dateline_text)
-        nw_draw_doc_text(document.dateline_text, x + 356.0F,
-                         y + chrome_h + 2.0F, 0.48F, NW_CHROME_DARK);
+        nw_draw_doc_text(document.dateline_text, x + 350.0F,
+                         y + chrome_h + 2.0F, 0.54F, NW_CHROME_DARK);
 
     /* Newspaper-like page rule. */
     nw_quad(content_x, doc_top,
@@ -891,26 +944,26 @@ static void nw_draw_article(double t)
     title_box = (nw_text_box){
         content_x,
         doc_top + 8.0F,
-        145.0F,
+        158.0F,
         82.0F
     };
     if (document.headline_text)
         (void)nw_draw_text_box(document.headline_text, 0U, title_box,
-                               1.34F, NW_INK);
+                               1.46F, NW_INK);
 
     if (document.dateline_text)
         nw_draw_doc_text(document.dateline_text, content_x,
-                         doc_top + 96.0F, 0.58F, NW_CHROME_DARK);
+                         doc_top + 96.0F, 0.66F, NW_CHROME_DARK);
 
     if (document.lead_text && document.lead_text[0] != '\0') {
         lead_box = (nw_text_box){
             content_x,
             doc_top + 107.0F,
-            145.0F,
+            162.0F,
             62.0F
         };
         (void)nw_draw_text_box(document.lead_text, 0U, lead_box,
-                               0.58F, NW_CHROME_DARK);
+                               0.70F, NW_CHROME_DARK);
     }
 
     body = document.body_text;
@@ -918,25 +971,35 @@ static void nw_draw_article(double t)
         body = document.lead_text;
 
     if (body && body[0] != '\0') {
-        const float right_x = content_x + 160.0F;
-        const float right_w = content_w - 160.0F;
-        const float col_gap = 8.0F;
-        const float col_w = (right_w - col_gap) * 0.5F;
+        const float right_x = content_x + 171.0F;
+        const float right_w = content_w - 171.0F;
+        const float col_gap = 6.5F;
+        const float col_1_w = (right_w - col_gap) * 0.525F;
+        const float col_2_w = right_w - col_gap - col_1_w;
+        const float lower_gap = 7.0F;
+        const float lower_1_w = 193.0F;
+        const float lower_2_x = content_x + lower_1_w + lower_gap;
+        const float lower_2_w = content_w - lower_1_w - lower_gap - 4.0F;
 
-        body_offset = nw_advance_text_lines(body, 0U, col_w,
+        /*
+         * Width-aware scrolling uses the same proportional metrics as drawing,
+         * so the article no longer jumps according to an invisible monospace
+         * grid.  The two columns are deliberately close, but not identical.
+         */
+        body_offset = nw_advance_text_lines(body, 0U, col_1_w,
                                             body_pixel, scroll_lines);
 
         body_box_1 = (nw_text_box){
             right_x,
-            doc_top + 8.0F - scroll_frac * body_line_step,
-            col_w,
-            168.0F
+            doc_top + 7.4F - scroll_frac * body_line_step,
+            col_1_w,
+            169.0F
         };
         body_box_2 = (nw_text_box){
-            right_x + col_w + col_gap,
+            right_x + col_1_w + col_gap,
             doc_top + 8.0F - scroll_frac * body_line_step,
-            col_w,
-            168.0F
+            col_2_w,
+            166.5F
         };
 
         body_offset = nw_draw_text_box(body, body_offset, body_box_1,
@@ -944,18 +1007,22 @@ static void nw_draw_article(double t)
         (void)nw_draw_text_box(body, body_offset, body_box_2,
                                body_pixel, NW_INK);
 
-        /* Lower continuation region, like a clipped page beneath the fold. */
+        /*
+         * Lower continuation is slightly offset and leaves an uneven outer
+         * margin.  That lets the page edge, rather than a perfect grid, define
+         * where the recovered text appears to clip.
+         */
         body_box_1 = (nw_text_box){
             content_x,
             doc_top + 184.0F,
-            content_w * 0.48F,
+            lower_1_w,
             81.0F
         };
         body_box_2 = (nw_text_box){
-            content_x + content_w * 0.52F,
-            doc_top + 184.0F,
-            content_w * 0.45F,
-            81.0F
+            lower_2_x,
+            doc_top + 183.4F,
+            lower_2_w,
+            82.5F
         };
         body_offset = nw_draw_text_box(body, body_offset, body_box_1,
                                        body_pixel, NW_INK);
@@ -964,14 +1031,14 @@ static void nw_draw_article(double t)
     }
 
     /* Fine column guides/rules make the page feel typeset rather than diagrammed. */
-    nw_quad(content_x + 153.0F, doc_top + 5.0F,
-            content_x + 154.0F, doc_top + 174.0F,
+    nw_quad(content_x + 164.0F, doc_top + 5.0F,
+            content_x + 165.0F, doc_top + 174.5F,
             (nw_color){NW_CHROME_DARK.r, NW_CHROME_DARK.g,
-                       NW_CHROME_DARK.b, 0.35F});
-    nw_quad(content_x, doc_top + 177.0F,
-            content_x + content_w, doc_top + 178.0F,
+                       NW_CHROME_DARK.b, 0.30F});
+    nw_quad(content_x + 1.0F, doc_top + 177.2F,
+            content_x + content_w - 4.0F, doc_top + 178.0F,
             (nw_color){NW_CHROME_DARK.r, NW_CHROME_DARK.g,
-                       NW_CHROME_DARK.b, 0.45F});
+                       NW_CHROME_DARK.b, 0.40F});
 
     nw_draw_web_scrollbar(scrollbar_x,
                           y + chrome_h + status_h + 6.0F,
@@ -1150,6 +1217,9 @@ int neo_workstation_self_test(void)
     if (nw_search_rows('x') != NULL) return 0;
     if (nw_doc_rows('a') == NULL) return 0;
     if (nw_doc_rows('Z') == NULL) return 0;
+    if (!(nw_doc_advance(' ', 1.0F) < nw_doc_advance('a', 1.0F))) return 0;
+    if (!(nw_doc_advance('i', 1.0F) < nw_doc_advance('m', 1.0F))) return 0;
+    if (!(nw_doc_line_step(0.68F) > nw_doc_line_step(0.54F))) return 0;
     if (neo_news_search_result(1U) == NULL) return 0;
     return 1;
 }
