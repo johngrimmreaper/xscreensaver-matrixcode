@@ -533,6 +533,116 @@ static int nw_text_is_space(char ch)
     return ch == ' ' || ch == '\t' || ch == '\r';
 }
 
+static const uint8_t *nw_doc_rows(char ch)
+{
+    static const uint8_t lower_a[7] = { 0,0,14,1,15,17,15 };
+    static const uint8_t lower_b[7] = { 16,16,30,17,17,17,30 };
+    static const uint8_t lower_c[7] = { 0,0,14,17,16,17,14 };
+    static const uint8_t lower_d[7] = { 1,1,15,17,17,17,15 };
+    static const uint8_t lower_e[7] = { 0,0,14,17,31,16,14 };
+    static const uint8_t lower_f[7] = { 6,9,8,28,8,8,8 };
+    static const uint8_t lower_g[7] = { 0,0,15,17,15,1,14 };
+    static const uint8_t lower_h[7] = { 16,16,22,25,17,17,17 };
+    static const uint8_t lower_i[7] = { 4,0,12,4,4,4,14 };
+    static const uint8_t lower_j[7] = { 2,0,6,2,2,18,12 };
+    static const uint8_t lower_k[7] = { 16,16,18,20,24,20,18 };
+    static const uint8_t lower_l[7] = { 12,4,4,4,4,4,14 };
+    static const uint8_t lower_m[7] = { 0,0,26,21,21,21,21 };
+    static const uint8_t lower_n[7] = { 0,0,22,25,17,17,17 };
+    static const uint8_t lower_o[7] = { 0,0,14,17,17,17,14 };
+    static const uint8_t lower_p[7] = { 0,0,30,17,30,16,16 };
+    static const uint8_t lower_q[7] = { 0,0,15,17,15,1,1 };
+    static const uint8_t lower_r[7] = { 0,0,22,25,16,16,16 };
+    static const uint8_t lower_s[7] = { 0,0,15,16,14,1,30 };
+    static const uint8_t lower_t[7] = { 8,8,28,8,8,9,6 };
+    static const uint8_t lower_u[7] = { 0,0,17,17,17,19,13 };
+    static const uint8_t lower_v[7] = { 0,0,17,17,17,10,4 };
+    static const uint8_t lower_w[7] = { 0,0,17,17,21,21,10 };
+    static const uint8_t lower_x[7] = { 0,0,17,10,4,10,17 };
+    static const uint8_t lower_y[7] = { 0,0,17,17,15,1,14 };
+    static const uint8_t lower_z[7] = { 0,0,31,2,4,8,31 };
+    static const uint8_t comma[7]   = { 0,0,0,0,4,4,8 };
+    static const uint8_t apost[7]   = { 4,4,8,0,0,0,0 };
+    static const uint8_t quote[7]   = { 10,10,0,0,0,0,0 };
+    static const uint8_t qmark[7]   = { 14,17,1,2,4,0,4 };
+    static const uint8_t excl[7]    = { 4,4,4,4,4,0,4 };
+    static const uint8_t lparen[7]  = { 2,4,8,8,8,4,2 };
+    static const uint8_t rparen[7]  = { 8,4,2,2,2,4,8 };
+
+    switch (ch) {
+    case 'a': return lower_a; case 'b': return lower_b;
+    case 'c': return lower_c; case 'd': return lower_d;
+    case 'e': return lower_e; case 'f': return lower_f;
+    case 'g': return lower_g; case 'h': return lower_h;
+    case 'i': return lower_i; case 'j': return lower_j;
+    case 'k': return lower_k; case 'l': return lower_l;
+    case 'm': return lower_m; case 'n': return lower_n;
+    case 'o': return lower_o; case 'p': return lower_p;
+    case 'q': return lower_q; case 'r': return lower_r;
+    case 's': return lower_s; case 't': return lower_t;
+    case 'u': return lower_u; case 'v': return lower_v;
+    case 'w': return lower_w; case 'x': return lower_x;
+    case 'y': return lower_y; case 'z': return lower_z;
+    case ',': return comma;
+    case '\'': return apost;
+    case '"': return quote;
+    case '?': return qmark;
+    case '!': return excl;
+    case '(': return lparen;
+    case ')': return rparen;
+    default: return nw_upper_rows(ch);
+    }
+}
+
+static void nw_draw_doc_text(const char *text, float x, float y, float pixel,
+                             nw_color c)
+{
+    float pen = x;
+    size_t n;
+
+    if (!text || pixel <= 0.0F)
+        return;
+
+    glDisable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColor4f(c.r, c.g, c.b, c.a);
+    glBegin(GL_QUADS);
+
+    for (n = 0U; text[n] != '\0'; n++) {
+        const uint8_t *rows = nw_doc_rows(text[n]);
+        unsigned int row;
+        unsigned int col;
+
+        if (text[n] == '\n') {
+            y += pixel * 9.0F;
+            pen = x;
+            continue;
+        }
+
+        if (rows) {
+            for (row = 0U; row < 7U; row++) {
+                for (col = 0U; col < 5U; col++) {
+                    if ((rows[row] &
+                         (uint8_t)(1U << (4U - col))) != 0U) {
+                        float px = pen + (float)col * pixel;
+                        float py = y + (float)row * pixel;
+                        glVertex2f(px, py);
+                        glVertex2f(px + pixel, py);
+                        glVertex2f(px + pixel, py + pixel);
+                        glVertex2f(px, py + pixel);
+                    }
+                }
+            }
+        }
+
+        pen += pixel * 6.0F;
+    }
+
+    glEnd();
+    glEnable(GL_TEXTURE_2D);
+}
+
 static size_t nw_draw_text_box(const char *text, size_t offset,
                                nw_text_box box, float pixel, nw_color c)
 {
@@ -596,10 +706,10 @@ static size_t nw_draw_text_box(const char *text, size_t offset,
             buffer[i] = text[start + i];
         buffer[count] = '\0';
 
-        nw_draw_upper(buffer,
-                      box.x,
-                      box.y + (float)line * line_step,
-                      pixel, c);
+        nw_draw_doc_text(buffer,
+                         box.x,
+                         box.y + (float)line * line_step,
+                         pixel, c);
 
         offset = scan;
         if (text[offset] == '\n')
@@ -694,10 +804,14 @@ static void nw_draw_web_scrollbar(float x, float y, float height,
 
 static void nw_draw_global_banner(float x, float y, float width)
 {
-    nw_quad(x, y, x + width, y + 48.0F, NW_BANNER);
-    nw_line(x, y, x + width, y, NW_CHROME_LIGHT);
-    nw_line(x, y + 48.0F, x + width, y + 48.0F, NW_CHROME_DARK);
-    nw_draw_upper("GLOBAL SEARCH", x + 18.0F, y + 11.0F, 3.0F,
+    const float height = 29.0F;
+
+    nw_quad(x + 3.0F, y + 3.0F, x + width + 3.0F, y + height + 3.0F,
+            (nw_color){0.0F, 0.0F, 0.0F, 0.20F});
+    nw_quad(x, y, x + width, y + height, NW_BANNER);
+    nw_line(x, y, x + width, y, NW_CHROME);
+    nw_line(x, y + height, x + width, y + height, NW_CHROME_DARK);
+    nw_draw_upper("GLOBAL SEARCH", x + 10.0F, y + 7.0F, 1.45F,
                   NW_BANNER_TEXT);
 }
 
@@ -710,23 +824,24 @@ static void nw_draw_article(double t)
     const char *query = neo_news_query_text();
     size_t body_offset = 0U;
     float appear = nw_stage(t, 3.0, 6.0);
-    float shift = nw_stage(t, 10.0, 14.0);
     float scroll = nw_stage(t, 6.0, 14.0);
-    float scroll_lines_f = scroll * 8.0F;
+    float scroll_lines_f = scroll * 7.0F;
     unsigned int scroll_lines = (unsigned int)scroll_lines_f;
     float scroll_frac = scroll_lines_f - (float)scroll_lines;
-    float x = 32.0F + (1.0F - appear) * 78.0F - shift * 20.0F;
-    float y = 154.0F - appear * 8.0F;
-    float w = 472.0F;
-    float h = 310.0F;
-    const float chrome_h = 22.0F;
-    const float location_h = 16.0F;
-    const float content_x = x + 18.0F;
-    const float content_w = w - 48.0F;
-    const float scrollbar_x = x + w - 18.0F;
-    const float body_pixel = 0.62F;
+    float x = 54.0F + (1.0F - appear) * 54.0F;
+    float y = 145.0F - appear * 4.0F;
+    float w = 432.0F;
+    float h = 304.0F;
+    const float chrome_h = 14.0F;
+    const float status_h = 10.0F;
+    const float doc_top = y + chrome_h + status_h + 7.0F;
+    const float content_x = x + 14.0F;
+    const float content_w = w - 38.0F;
+    const float scrollbar_x = x + w - 13.0F;
+    const float body_pixel = 0.54F;
     const float body_line_step = body_pixel * 9.0F;
     nw_text_box title_box;
+    nw_text_box lead_box;
     nw_text_box body_box_1;
     nw_text_box body_box_2;
 
@@ -740,69 +855,62 @@ static void nw_draw_article(double t)
         return;
 
     /*
-     * The search result is rendered as a late-1990s web document inside the
-     * fictional workstation: browser-like chrome stays fixed while article
-     * content scrolls beneath it.  This is intentionally generic so the same
-     * layout can later render live news without changing the scene code.
+     * A restrained late-1990s document window.  Browser/search chrome stays
+     * fixed, but the result itself is laid out like a newspaper page placed
+     * into a publishing/search workstation rather than a modern web card.
      */
-    nw_quad(x + 7.0F, y + 8.0F, x + w + 7.0F, y + h + 8.0F,
-            NW_CHROME_DARK);
+    nw_quad(x + 4.0F, y + 5.0F, x + w + 4.0F, y + h + 5.0F,
+            (nw_color){0.0F, 0.0F, 0.0F, 0.24F});
     nw_quad(x, y, x + w, y + h, NW_PAPER);
 
-    /* Site/search chrome. */
+    /* Narrow application/document chrome. */
     nw_quad(x, y, x + w, y + chrome_h, NW_BANNER);
-    nw_line(x, y + chrome_h, x + w, y + chrome_h, NW_CHROME_LIGHT);
-    nw_draw_upper("GLOBAL SEARCH", x + 9.0F, y + 5.0F,
-                  0.82F, NW_BANNER_TEXT);
+    nw_line(x, y + chrome_h, x + w, y + chrome_h, NW_CHROME_DARK);
+    nw_draw_upper("SEARCH", x + 7.0F, y + 3.0F, 0.58F,
+                  NW_BANNER_TEXT);
     if (query && query[0] != '\0')
-        nw_draw_upper(query, x + 326.0F, y + 5.0F,
-                      0.82F, NW_BANNER_TEXT);
+        nw_draw_doc_text(query, x + 330.0F, y + 3.0F, 0.58F,
+                         NW_BANNER_TEXT);
 
-    /* Location/result strip: evokes an address/status row without inventing a URL. */
-    nw_quad(x + 1.0F, y + chrome_h,
-            x + w - 1.0F, y + chrome_h + location_h,
+    nw_quad(x, y + chrome_h, x + w, y + chrome_h + status_h,
             NW_CHROME_LIGHT);
-    nw_draw_upper("RESULT 02", x + 9.0F, y + chrome_h + 4.0F,
-                  0.60F, NW_CHROME_DARK);
+    nw_draw_upper("RESULT 02", x + 7.0F, y + chrome_h + 2.0F,
+                  0.48F, NW_CHROME_DARK);
     if (document.dateline_text)
-        nw_draw_upper(document.dateline_text, x + 343.0F,
-                      y + chrome_h + 4.0F, 0.60F, NW_CHROME_DARK);
+        nw_draw_doc_text(document.dateline_text, x + 356.0F,
+                         y + chrome_h + 2.0F, 0.48F, NW_CHROME_DARK);
 
-    /* Thin link/navigation rule below the chrome. */
-    nw_quad(x + 1.0F, y + chrome_h + location_h,
-            x + w - 1.0F, y + chrome_h + location_h + 2.0F,
-            NW_CHROME_DARK);
-    nw_quad(x + 18.0F, y + chrome_h + location_h + 5.0F,
-            x + 96.0F, y + chrome_h + location_h + 7.0F,
-            NW_CHROME);
+    /* Newspaper-like page rule. */
+    nw_quad(content_x, doc_top,
+            content_x + content_w, doc_top + 1.4F, NW_CHROME_DARK);
 
-    /* Headline occupies the document header like a web article title. */
+    /*
+     * The film's Heathrow result reads as a web-retrieved newspaper clipping:
+     * a strong headline block on the left and dense article copy beside it.
+     */
     title_box = (nw_text_box){
         content_x,
-        y + chrome_h + location_h + 14.0F,
-        content_w,
-        64.0F
+        doc_top + 8.0F,
+        145.0F,
+        82.0F
     };
     if (document.headline_text)
         (void)nw_draw_text_box(document.headline_text, 0U, title_box,
-                               1.45F, NW_INK);
+                               1.34F, NW_INK);
 
-    /* Divider and tiny metadata rail. */
-    nw_quad(content_x,
-            y + chrome_h + location_h + 82.0F,
-            content_x + content_w,
-            y + chrome_h + location_h + 84.0F,
-            NW_CHROME_DARK);
+    if (document.dateline_text)
+        nw_draw_doc_text(document.dateline_text, content_x,
+                         doc_top + 96.0F, 0.58F, NW_CHROME_DARK);
 
     if (document.lead_text && document.lead_text[0] != '\0') {
-        nw_text_box lead_box = {
+        lead_box = (nw_text_box){
             content_x,
-            y + chrome_h + location_h + 89.0F,
-            content_w - 10.0F,
-            35.0F
+            doc_top + 107.0F,
+            145.0F,
+            62.0F
         };
         (void)nw_draw_text_box(document.lead_text, 0U, lead_box,
-                               0.70F, NW_CHROME_DARK);
+                               0.58F, NW_CHROME_DARK);
     }
 
     body = document.body_text;
@@ -810,66 +918,114 @@ static void nw_draw_article(double t)
         body = document.lead_text;
 
     if (body && body[0] != '\0') {
-        /*
-         * Scroll the recovered article text in line-sized steps with a smooth
-         * fractional offset.  A future live-news provider supplies the same
-         * display_body field, so no renderer change is required.
-         */
-        body_offset = nw_advance_text_lines(body, 0U,
-                                            content_w * 0.49F,
-                                            body_pixel,
-                                            scroll_lines);
+        const float right_x = content_x + 160.0F;
+        const float right_w = content_w - 160.0F;
+        const float col_gap = 8.0F;
+        const float col_w = (right_w - col_gap) * 0.5F;
+
+        body_offset = nw_advance_text_lines(body, 0U, col_w,
+                                            body_pixel, scroll_lines);
 
         body_box_1 = (nw_text_box){
-            content_x,
-            y + chrome_h + location_h + 130.0F -
-                scroll_frac * body_line_step,
-            content_w * 0.49F,
-            126.0F
+            right_x,
+            doc_top + 8.0F - scroll_frac * body_line_step,
+            col_w,
+            168.0F
         };
         body_box_2 = (nw_text_box){
-            content_x + content_w * 0.52F,
-            y + chrome_h + location_h + 130.0F -
-                scroll_frac * body_line_step,
-            content_w * 0.46F,
-            126.0F
+            right_x + col_w + col_gap,
+            doc_top + 8.0F - scroll_frac * body_line_step,
+            col_w,
+            168.0F
         };
 
         body_offset = nw_draw_text_box(body, body_offset, body_box_1,
                                        body_pixel, NW_INK);
         (void)nw_draw_text_box(body, body_offset, body_box_2,
                                body_pixel, NW_INK);
+
+        /* Lower continuation region, like a clipped page beneath the fold. */
+        body_box_1 = (nw_text_box){
+            content_x,
+            doc_top + 184.0F,
+            content_w * 0.48F,
+            81.0F
+        };
+        body_box_2 = (nw_text_box){
+            content_x + content_w * 0.52F,
+            doc_top + 184.0F,
+            content_w * 0.45F,
+            81.0F
+        };
+        body_offset = nw_draw_text_box(body, body_offset, body_box_1,
+                                       body_pixel, NW_INK);
+        (void)nw_draw_text_box(body, body_offset, body_box_2,
+                               body_pixel, NW_INK);
     }
 
-    /* Fixed browser/document scrollbar. */
+    /* Fine column guides/rules make the page feel typeset rather than diagrammed. */
+    nw_quad(content_x + 153.0F, doc_top + 5.0F,
+            content_x + 154.0F, doc_top + 174.0F,
+            (nw_color){NW_CHROME_DARK.r, NW_CHROME_DARK.g,
+                       NW_CHROME_DARK.b, 0.35F});
+    nw_quad(content_x, doc_top + 177.0F,
+            content_x + content_w, doc_top + 178.0F,
+            (nw_color){NW_CHROME_DARK.r, NW_CHROME_DARK.g,
+                       NW_CHROME_DARK.b, 0.45F});
+
     nw_draw_web_scrollbar(scrollbar_x,
-                          y + chrome_h + location_h + 45.0F,
-                          h - chrome_h - location_h - 56.0F,
+                          y + chrome_h + status_h + 6.0F,
+                          h - chrome_h - status_h - 12.0F,
                           scroll);
 }
 
 static void nw_draw_portrait(double t)
 {
     float appear = nw_stage(t, 7.0, 11.0);
-    float x = 493.0F + (1.0F - appear) * 92.0F;
-    float y = 151.0F;
+    float x = 496.0F + (1.0F - appear) * 72.0F;
+    float y = 157.0F;
     unsigned int i;
 
-    if (appear <= 0.0F) return;
+    if (appear <= 0.0F)
+        return;
 
+    /*
+     * Treat the portrait like a low-bandwidth intelligence/news photograph:
+     * dark photocopy field, uneven scan bands, and clipped highlights rather
+     * than a clean vector cartoon.
+     */
+    nw_quad(x + 3.0F, y + 4.0F, 637.0F, 463.0F,
+            (nw_color){0.0F, 0.0F, 0.0F, 0.25F});
     nw_quad(x, y, 634.0F, 459.0F, NW_PAPER_ALT);
-    nw_quad(x + 7.0F, y + 8.0F, 629.0F, 454.0F, NW_IMAGE_DARK);
+    nw_quad(x + 5.0F, y + 6.0F, 630.0F, 455.0F, NW_IMAGE_DARK);
 
-    nw_ellipse(x + 79.0F, y + 97.0F, 48.0F, 67.0F, NW_IMAGE_MID);
-    nw_ellipse(x + 74.0F, y + 103.0F, 44.0F, 64.0F, NW_IMAGE_DARK);
-    nw_quad(x + 104.0F, y + 95.0F, x + 132.0F, y + 110.0F,
+    /* Head and shoulder mass. */
+    nw_ellipse(x + 77.0F, y + 99.0F, 45.0F, 64.0F, NW_IMAGE_MID);
+    nw_ellipse(x + 71.0F, y + 105.0F, 41.0F, 61.0F, NW_IMAGE_DARK);
+    nw_quad(x + 92.0F, y + 93.0F, x + 128.0F, y + 108.0F,
             NW_IMAGE_DARK);
-    nw_ellipse(x + 74.0F, y + 259.0F, 87.0F, 103.0F, NW_IMAGE_DARK);
+    nw_ellipse(x + 70.0F, y + 258.0F, 84.0F, 101.0F, NW_IMAGE_DARK);
 
-    for (i = 0U; i < 14U; i++) {
-        float yy = y + 54.0F + (float)i * 19.0F;
-        nw_quad(x + 13.0F, yy, 625.0F, yy + 1.2F,
-                (nw_color){0.24F,0.34F,0.27F,0.28F});
+    /* Broken photocopy highlights along the face edge and glasses area. */
+    nw_quad(x + 101.0F, y + 86.0F, x + 121.0F, y + 89.0F,
+            (nw_color){0.20F, 0.29F, 0.25F, 0.44F});
+    nw_quad(x + 107.0F, y + 92.0F, x + 126.0F, y + 94.0F,
+            (nw_color){0.24F, 0.34F, 0.29F, 0.38F});
+    nw_quad(x + 99.0F, y + 113.0F, x + 118.0F, y + 116.0F,
+            (nw_color){0.17F, 0.25F, 0.21F, 0.34F});
+
+    for (i = 0U; i < 43U; i++) {
+        uint32_t v = UINT32_C(0x9e3779b9) ^ (i * UINT32_C(0x45d9f3b));
+        float yy = y + 12.0F + (float)i * 6.6F;
+        float inset;
+
+        v ^= v >> 16U;
+        v *= UINT32_C(0x7feb352d);
+        v ^= v >> 15U;
+        inset = 4.0F + (float)(v & UINT32_C(15)) * 0.55F;
+
+        nw_quad(x + inset, yy, 629.0F - inset * 0.45F, yy + 0.7F,
+                (nw_color){0.25F, 0.38F, 0.31F, 0.12F});
     }
 }
 
@@ -908,51 +1064,81 @@ static void nw_draw_arabic_result(double t)
 
 static void nw_draw_search_box(double t)
 {
-    float pulse = 0.90F + 0.08F * sinf((float)t * 6.0F);
-    const float x0 = 137.0F;
-    const float y0 = 67.0F;
-    const float x1 = 447.0F;
-    const float y1 = 111.0F;
+    float pulse = 0.90F + 0.07F * sinf((float)t * 6.0F);
+    const float x0 = 151.0F;
+    const float y0 = 74.0F;
+    const float x1 = 430.0F;
+    const float y1 = 105.0F;
 
-    nw_quad(x0 + 6.0F, y0 + 7.0F, x1 + 6.0F, y1 + 7.0F,
-            (nw_color){0.0F,0.0F,0.0F,0.42F});
+    nw_quad(x0 + 3.0F, y0 + 4.0F, x1 + 3.0F, y1 + 4.0F,
+            (nw_color){0.0F,0.0F,0.0F,0.24F});
     nw_quad(x0, y0, x1, y1, NW_SEARCH_BG);
     nw_line(x0, y0, x1, y0, NW_SEARCH_EDGE);
     nw_line(x0, y0, x0, y1, NW_SEARCH_EDGE);
     nw_line(x1, y0, x1, y1, NW_CHROME_DARK);
     nw_line(x0, y1, x1, y1, NW_CHROME_DARK);
 
-    neo_workstation_draw_searching(x0 + 18.0F, y0 + 10.0F, 2.45F, pulse);
+    neo_workstation_draw_searching(x0 + 15.0F, y0 + 7.0F, 1.72F, pulse);
 }
 
 static void nw_draw_scanlines(void)
 {
     unsigned int y;
-    for (y = 1U; y < 480U; y += 4U) {
-        nw_quad(0.0F, (float)y, NW_W, (float)y + 1.0F,
-                (nw_color){0.0F,0.0F,0.0F,0.075F});
+
+    /*
+     * Film-like CRT modulation: much subtler than the earlier hard black
+     * stripes.  The photographed monitor should soften the framebuffer rather
+     * than turn it into a stylized scanline effect.
+     */
+    for (y = 1U; y < 480U; y += 3U) {
+        float alpha = ((y / 3U) & 1U) ? 0.026F : 0.038F;
+        nw_quad(0.0F, (float)y, NW_W, (float)y + 0.65F,
+                (nw_color){0.0F, 0.0F, 0.0F, alpha});
     }
+}
+
+static void nw_draw_screen_vignette(void)
+{
+    nw_quad(0.0F, 0.0F, 10.0F, NW_H,
+            (nw_color){0.0F,0.0F,0.0F,0.18F});
+    nw_quad(NW_W - 10.0F, 0.0F, NW_W, NW_H,
+            (nw_color){0.0F,0.0F,0.0F,0.18F});
+    nw_quad(10.0F, 0.0F, 22.0F, NW_H,
+            (nw_color){0.0F,0.0F,0.0F,0.08F});
+    nw_quad(NW_W - 22.0F, 0.0F, NW_W - 10.0F, NW_H,
+            (nw_color){0.0F,0.0F,0.0F,0.08F});
+    nw_quad(0.0F, 0.0F, NW_W, 7.0F,
+            (nw_color){0.0F,0.0F,0.0F,0.10F});
+    nw_quad(0.0F, NW_H - 9.0F, NW_W, NW_H,
+            (nw_color){0.0F,0.0F,0.0F,0.12F});
 }
 
 void neo_workstation_render(double elapsed)
 {
     float global_appear = nw_stage(elapsed, 0.5, 3.5);
-    float banner_y = 126.0F + (1.0F - global_appear) * 34.0F;
+    float banner_y = 114.0F + (1.0F - global_appear) * 20.0F;
 
     nw_quad(0.0F, 0.0F, NW_W, NW_H, NW_DESKTOP);
     nw_draw_toolbar(elapsed);
 
-    nw_quad(16.0F, 62.0F, 624.0F, 469.0F, NW_CHROME_DARK);
-    nw_quad(23.0F, 68.0F, 617.0F, 463.0F, NW_PAPER_ALT);
+    /*
+     * Dark pasteboard with offset document sheets: a desktop publishing/search
+     * workspace, not one enormous clean rectangle.
+     */
+    nw_quad(18.0F, 61.0F, 622.0F, 469.0F, NW_CHROME_DARK);
+    nw_quad(31.0F, 78.0F, 603.0F, 458.0F,
+            (nw_color){0.50F, 0.64F, 0.59F, 1.0F});
+    nw_quad(42.0F, 91.0F, 588.0F, 450.0F, NW_PAPER_ALT);
 
     if (global_appear > 0.0F)
-        nw_draw_global_banner(78.0F, banner_y, 404.0F);
+        nw_draw_global_banner(70.0F, banner_y, 292.0F);
 
     nw_draw_article(elapsed);
     nw_draw_portrait(elapsed);
     nw_draw_arabic_result(elapsed);
     nw_draw_search_box(elapsed);
     nw_draw_scanlines();
+    nw_draw_screen_vignette();
 }
 
 int neo_workstation_self_test(void)
@@ -962,6 +1148,8 @@ int neo_workstation_self_test(void)
     if (nw_upper_rows('G') == NULL) return 0;
     if (nw_search_rows('a') == NULL) return 0;
     if (nw_search_rows('x') != NULL) return 0;
+    if (nw_doc_rows('a') == NULL) return 0;
+    if (nw_doc_rows('Z') == NULL) return 0;
     if (neo_news_search_result(1U) == NULL) return 0;
     return 1;
 }
